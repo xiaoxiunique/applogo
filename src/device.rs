@@ -31,8 +31,9 @@ pub fn find_device(id: &str) -> Option<&'static DeviceConfig> {
 }
 
 pub const DEFAULT_DEVICE: &str = "apple-iphone-16-pro-black-titanium";
+pub const DEFAULT_ANDROID_DEVICE: &str = "samsung-galaxys21ultra-black";
 
-static DEVICES: [DeviceConfig; 7] = [
+static DEVICES: [DeviceConfig; 8] = [
     // iPhone 17 Pro
     DeviceConfig {
         id: "apple-iphone-17-pro-deep-blue",
@@ -160,6 +161,27 @@ static DEVICES: [DeviceConfig; 7] = [
                 screen_coord: [(2634, 98), (2634, 1272), (98, 1272), (98, 98)],
                 template: include_bytes!("../resources/templates/apple-iphone14-midnight-landscape.png"),
                 mask: include_bytes!("../resources/masks/apple-iphone14-midnight-landscape.png"),
+            },
+        ],
+    },
+    // Samsung Galaxy S21 Ultra
+    DeviceConfig {
+        id: "samsung-galaxys21ultra-black",
+        name: "Galaxy S21 Ultra",
+        color: "Black",
+        display_resolution: (1440, 3200),
+        orientations: &[
+            OrientationConfig {
+                name: "portrait",
+                screen_coord: [(200, 200), (1640, 200), (1640, 3400), (200, 3400)],
+                template: include_bytes!("../resources/templates/samsung-galaxys21ultra-black-portrait.png"),
+                mask: include_bytes!("../resources/masks/samsung-galaxys21ultra-black-portrait.png"),
+            },
+            OrientationConfig {
+                name: "landscape",
+                screen_coord: [(3400, 200), (3400, 1640), (200, 1640), (200, 200)],
+                template: include_bytes!("../resources/templates/samsung-galaxys21ultra-black-landscape.png"),
+                mask: include_bytes!("../resources/masks/samsung-galaxys21ultra-black-landscape.png"),
             },
         ],
     },

@@ -15,6 +15,15 @@ use clap::{Parser, Subcommand};
 use config::Platform;
 use zip::ZipEntry;
 
+/// Check if a command exists in PATH.
+fn which_exists(cmd: &str) -> bool {
+    std::process::Command::new("which")
+        .arg(cmd)
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
 #[derive(Parser)]
 #[command(name = "launch", about = "App launch toolkit — icons, mockups, and more")]
 struct Cli {
@@ -47,6 +56,8 @@ enum Command {
     Mockup(MockupArgs),
     /// Capture screenshot from iOS Simulator and apply mockup
     Capture(CaptureArgs),
+    /// Capture screenshot from Android device via ADB
+    Acapture(AcaptureArgs),
     /// Generate App Store screenshot with title and device mockup
     Screenshot(ScreenshotArgs),
 }
@@ -131,6 +142,41 @@ struct CaptureArgs {
 }
 
 #[derive(Parser)]
+struct AcaptureArgs {
+    /// Output filename
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+
+    /// ADB device serial (when multiple devices connected)
+    #[arg(short, long)]
+    serial: Option<String>,
+
+    /// Device frame ID
+    #[arg(short, long, default_value = device::DEFAULT_ANDROID_DEVICE)]
+    device: String,
+
+    /// Orientation: portrait or landscape
+    #[arg(long, default_value = "portrait")]
+    orientation: String,
+
+    /// Save raw screenshot too (without processing)
+    #[arg(long)]
+    raw: bool,
+
+    /// Title text — when set, generates a full Play Store screenshot
+    #[arg(short, long)]
+    title: Option<String>,
+
+    /// Font size for title (used with --title)
+    #[arg(long, default_value = "200")]
+    font_size: f32,
+
+    /// Custom font file for title (used with --title)
+    #[arg(long)]
+    font: Option<PathBuf>,
+}
+
+#[derive(Parser)]
 struct ScreenshotArgs {
     /// Screenshot image (or directory for batch processing)
     input: PathBuf,
@@ -167,6 +213,7 @@ fn main() -> Result<()> {
         Some(Command::Icon(args)) => run_icon(args),
         Some(Command::Mockup(args)) => run_mockup(args),
         Some(Command::Capture(args)) => run_capture(args),
+        Some(Command::Acapture(args)) => run_acapture(args),
         Some(Command::Screenshot(args)) => run_screenshot(args),
         None => {
             // Backward compat: treat as icon generation if input is provided
@@ -388,6 +435,139 @@ fn run_capture(args: CaptureArgs) -> Result<()> {
     if let Some(title) = &args.title {
         // Full App Store screenshot: capture → mockup → title
         screenshot::run(
+            &raw_path,
+            &output,
+            title,
+            &args.device,
+            &args.orientation,
+            args.font.as_deref(),
+            args.font_size,
+        )?;
+    } else {
+        // Just mockup
+        mockup::run(&raw_path, &output, &args.device, &args.orientation)?;
+    }
+
+    // Clean up temp file
+    let _ = std::fs::remove_file(&raw_path);
+
+    Ok(())
+}
+
+fn run_acapture(args: AcaptureArgs) -> Result<()> {
+    use std::process::Command as Cmd;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let raw_path = std::env::temp_dir().join(format!("launch-acapture-{}.png", ts));
+
+    // Find adb binary — check PATH first, then common install locations
+    let adb = {
+        let common_paths = [
+            std::env::var("HOME").ok().map(|h| PathBuf::from(h).join("Library/Android/sdk/platform-tools/adb")),
+            Some(PathBuf::from("/opt/homebrew/bin/adb")),
+            Some(PathBuf::from("/usr/local/bin/adb")),
+        ];
+        if which_exists("adb") {
+            PathBuf::from("adb")
+        } else if let Some(path) = common_paths.iter().flatten().find(|p| p.exists()) {
+            eprintln!("Found adb at {}", path.display());
+            path.clone()
+        } else {
+            anyhow::bail!(
+                "adb not found. Install Android SDK or add platform-tools to PATH.\n\
+                 Common location: ~/Library/Android/sdk/platform-tools/"
+            );
+        }
+    };
+
+    // Auto-detect ADB device if not specified
+    let serial = if let Some(s) = args.serial {
+        s
+    } else {
+        let output = Cmd::new(&adb)
+            .args(["devices"])
+            .output()
+            .context("Failed to run adb. Is Android SDK installed?")?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let devices: Vec<&str> = stdout
+            .lines()
+            .skip(1) // skip "List of devices attached"
+            .filter_map(|line| {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 && parts[1] == "device" {
+                    Some(parts[0])
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        match devices.len() {
+            0 => anyhow::bail!(
+                "No Android device found.\n\
+                 Connect a device via USB or start an emulator, then check: adb devices"
+            ),
+            1 => {
+                eprintln!("Detected device: {}", devices[0]);
+                devices[0].to_string()
+            }
+            _ => {
+                eprintln!("Multiple devices detected:");
+                for d in &devices {
+                    eprintln!("  {}", d);
+                }
+                eprintln!("Using first device: {}", devices[0]);
+                eprintln!("Tip: use -s <serial> to specify a device");
+                devices[0].to_string()
+            }
+        }
+    };
+
+    // Capture from Android device via ADB
+    eprintln!("Capturing screenshot from {}...", serial);
+    let output_data = Cmd::new(&adb)
+        .args(["-s", &serial, "exec-out", "screencap", "-p"])
+        .output()
+        .context("Failed to run adb screencap")?;
+
+    if !output_data.status.success() {
+        anyhow::bail!(
+            "ADB screenshot failed for device {}.\n\
+             Check with: adb devices",
+            serial
+        );
+    }
+
+    std::fs::write(&raw_path, &output_data.stdout)
+        .context("Failed to write screenshot")?;
+
+    eprintln!("Captured Android screenshot");
+
+    // Determine output path
+    let has_title = args.title.is_some();
+    let default_suffix = if has_title { "screenshot" } else { "mockup" };
+    let output = args.output.unwrap_or_else(|| {
+        PathBuf::from(format!("android-{}-{}.png", ts, default_suffix))
+    });
+
+    // Optionally keep raw screenshot
+    if args.raw {
+        let raw_out = output
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join(format!("android-{}-raw.png", ts));
+        std::fs::copy(&raw_path, &raw_out)?;
+        eprintln!("Raw screenshot saved to {}", raw_out.display());
+    }
+
+    if let Some(title) = &args.title {
+        // Full Play Store screenshot: capture → mockup → title
+        screenshot::run_android(
             &raw_path,
             &output,
             title,
