@@ -8,11 +8,30 @@ Inspired by [appicon.co](https://www.appicon.co/).
 
 ## Install
 
+### Pre-built binaries
+
+Download from [GitHub Releases](https://github.com/user/applogo/releases/latest):
+
+| Platform | Download |
+|----------|----------|
+| macOS (Apple Silicon) | `applogo-aarch64-apple-darwin.tar.gz` |
+| macOS (Intel) | `applogo-x86_64-apple-darwin.tar.gz` |
+| Linux (x86_64) | `applogo-x86_64-unknown-linux-gnu.tar.gz` |
+| Windows (x86_64) | `applogo-x86_64-pc-windows-msvc.zip` |
+
+```bash
+# Example: macOS Apple Silicon
+curl -L https://github.com/user/applogo/releases/latest/download/applogo-aarch64-apple-darwin.tar.gz | tar xz
+sudo mv applogo /usr/local/bin/
+```
+
+### Build from source
+
 ```bash
 cargo install --path .
 ```
 
-Or build from source:
+Or:
 
 ```bash
 git clone https://github.com/user/applogo.git
