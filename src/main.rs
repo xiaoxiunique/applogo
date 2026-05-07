@@ -218,12 +218,42 @@ fn run_mockup(args: MockupArgs) -> Result<()> {
     } else {
         args.input.ok_or_else(|| {
             anyhow::anyhow!(
-                "Provide a screenshot path or use -c to read from clipboard.\n\
+                "Provide a screenshot path, directory, or use -c to read from clipboard.\n\
                  Usage: applogo mockup <screenshot.png>\n\
+                        applogo mockup <screenshots_dir/>\n\
                         applogo mockup -c"
             )
         })?
     };
+
+    // If input is a directory, batch process all images
+    if input.is_dir() {
+        let out_dir = args.output.unwrap_or_else(|| input.join("mockups"));
+        std::fs::create_dir_all(&out_dir)?;
+
+        let mut count = 0;
+        for entry in std::fs::read_dir(&input)? {
+            let entry = entry?;
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let ext = path
+                .extension()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_lowercase();
+            if !matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "webp") {
+                continue;
+            }
+            let stem = path.file_stem().unwrap_or_default().to_string_lossy();
+            let out_path = out_dir.join(format!("{}-mockup.png", stem));
+            mockup::run(&path, &out_path, &args.device, &args.orientation)?;
+            count += 1;
+        }
+        eprintln!("Processed {} images -> {}", count, out_dir.display());
+        return Ok(());
+    }
 
     let output = args.output.unwrap_or_else(|| {
         let stem = input.file_stem().unwrap_or_default().to_string_lossy();
