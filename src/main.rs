@@ -1,3 +1,4 @@
+mod clipboard;
 mod config;
 mod contents_json;
 mod device;
@@ -83,6 +84,10 @@ struct MockupArgs {
     /// Orientation: portrait or landscape
     #[arg(long, default_value = "portrait")]
     orientation: String,
+
+    /// Read screenshot from clipboard
+    #[arg(short, long)]
+    clipboard: bool,
 
     /// List available devices and exit
     #[arg(long)]
@@ -206,9 +211,19 @@ fn run_mockup(args: MockupArgs) -> Result<()> {
         return Ok(());
     }
 
-    let input = args
-        .input
-        .ok_or_else(|| anyhow::anyhow!("Screenshot path required. Usage: applogo mockup <screenshot.png>"))?;
+    let input = if args.clipboard {
+        let path = clipboard::save_clipboard_image()?;
+        eprintln!("Read image from clipboard");
+        path
+    } else {
+        args.input.ok_or_else(|| {
+            anyhow::anyhow!(
+                "Provide a screenshot path or use -c to read from clipboard.\n\
+                 Usage: applogo mockup <screenshot.png>\n\
+                        applogo mockup -c"
+            )
+        })?
+    };
 
     let output = args.output.unwrap_or_else(|| {
         let stem = input.file_stem().unwrap_or_default().to_string_lossy();
