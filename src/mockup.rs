@@ -78,33 +78,49 @@ fn compose(
     let min_x = coords.iter().map(|c| c.0).min().unwrap();
     let min_y = coords.iter().map(|c| c.1).min().unwrap();
 
-    // 4. Compose: screenshot behind mask, frame on top
+    // 4. Compose: for each pixel, decide what to show
+    //    - template opaque → show template (device frame)
+    //    - template transparent + mask opaque → show screenshot (screen area)
+    //    - both transparent → nothing (outside device)
     let mut result = RgbaImage::from_pixel(tw, th, image::Rgba([0, 0, 0, 0]));
 
-    // Paste screenshot at screen position
-    image::imageops::overlay(&mut result, &fitted, min_x as i64, min_y as i64);
-
-    // Apply mask: keep screenshot only where mask is opaque
     for y in 0..th {
         for x in 0..tw {
+            let tpl_px = template.get_pixel(x, y);
             let mask_px = mask.get_pixel(x, y);
-            let result_px = result.get_pixel(x, y);
-            let mask_alpha = mask_px[3] as f32 / 255.0;
-            result.put_pixel(
-                x,
-                y,
-                image::Rgba([
-                    (result_px[0] as f32 * mask_alpha) as u8,
-                    (result_px[1] as f32 * mask_alpha) as u8,
-                    (result_px[2] as f32 * mask_alpha) as u8,
-                    (mask_alpha * 255.0) as u8,
-                ]),
-            );
+            let tpl_a = tpl_px[3] as f32 / 255.0;
+
+            if tpl_a > 0.99 {
+                // Fully opaque frame pixel — show template directly
+                result.put_pixel(x, y, *tpl_px);
+            } else if mask_px[3] > 0 {
+                // Screen area — show screenshot, blend template on top if semi-transparent
+                let sx = x as i64 - min_x as i64;
+                let sy = y as i64 - min_y as i64;
+                let scr_px = if sx >= 0
+                    && sy >= 0
+                    && (sx as u32) < fitted.width()
+                    && (sy as u32) < fitted.height()
+                {
+                    *fitted.get_pixel(sx as u32, sy as u32)
+                } else {
+                    image::Rgba([0, 0, 0, 255]) // black letterbox
+                };
+
+                if tpl_a < 0.01 {
+                    // Fully transparent template — pure screenshot
+                    result.put_pixel(x, y, scr_px);
+                } else {
+                    // Semi-transparent template edge — blend frame over screenshot
+                    let r = (tpl_px[0] as f32 * tpl_a + scr_px[0] as f32 * (1.0 - tpl_a)) as u8;
+                    let g = (tpl_px[1] as f32 * tpl_a + scr_px[1] as f32 * (1.0 - tpl_a)) as u8;
+                    let b = (tpl_px[2] as f32 * tpl_a + scr_px[2] as f32 * (1.0 - tpl_a)) as u8;
+                    result.put_pixel(x, y, image::Rgba([r, g, b, 255]));
+                }
+            }
+            // else: outside device — stays transparent
         }
     }
-
-    // Overlay device frame on top
-    image::imageops::overlay(&mut result, &template, 0, 0);
 
     Ok(result)
 }
