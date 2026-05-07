@@ -67,6 +67,21 @@ fn measure_text_width(font: &FontVec, scale: PxScale, text: &str) -> f32 {
     width
 }
 
+/// Auto-scale font size to fit within canvas width (with padding).
+fn fit_font_size(font: &FontVec, text: &str, max_width: f32, initial_size: f32) -> f32 {
+    let padding = max_width * 0.08; // 4% padding each side
+    let available = max_width - padding;
+    let mut size = initial_size;
+    loop {
+        let scale = PxScale::from(size);
+        let w = measure_text_width(font, scale, text);
+        if w <= available || size <= 40.0 {
+            return size;
+        }
+        size *= 0.95;
+    }
+}
+
 /// Create a canvas with linear gradient background.
 fn create_gradient_canvas(w: u32, h: u32) -> RgbaImage {
     let mut canvas = RgbaImage::new(w, h);
@@ -140,7 +155,8 @@ pub fn run(
     let mockup_y = (CANVAS_H as f32 * MOCKUP_Y_RATIO) as i64;
     image::imageops::overlay(&mut canvas, &resized_mockup, mockup_x, mockup_y);
 
-    // 5. Draw title text
+    // 5. Draw title text (auto-scale if too wide)
+    let font_size = fit_font_size(&font, title, CANVAS_W as f32, font_size);
     let scale = PxScale::from(font_size);
     let text_w = measure_text_width(&font, scale, title);
     let text_x = ((CANVAS_W as f32 - text_w) / 2.0).max(0.0) as i32;
@@ -219,7 +235,8 @@ pub fn run_android(
     let img_y = img_top as i64;
     image::imageops::overlay(&mut canvas, &resized, img_x, img_y);
 
-    // 5. Draw title text centered
+    // 5. Draw title text centered (auto-scale if too wide)
+    let font_size = fit_font_size(&font, title, ANDROID_CANVAS_W as f32, font_size);
     let scale = PxScale::from(font_size);
     let text_w = measure_text_width(&font, scale, title);
     let text_x = ((ANDROID_CANVAS_W as f32 - text_w) / 2.0).max(0.0) as i32;

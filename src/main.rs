@@ -58,6 +58,8 @@ enum Command {
     Capture(CaptureArgs),
     /// Capture screenshot from Android device via ADB
     Acapture(AcaptureArgs),
+    /// Capture a macOS app window screenshot
+    Wcapture(WcaptureArgs),
     /// Generate App Store screenshot with title and device mockup
     Screenshot(ScreenshotArgs),
 }
@@ -177,6 +179,48 @@ struct AcaptureArgs {
 }
 
 #[derive(Parser)]
+struct WcaptureArgs {
+    /// App name to capture (e.g. "Simulator", "Safari", "微信")
+    app: String,
+
+    /// Output filename
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+
+    /// Save raw screenshot too (without processing)
+    #[arg(long)]
+    raw: bool,
+
+    /// Device frame ID (auto: iPhone for Simulator, MacBook for other apps)
+    #[arg(short, long)]
+    device: Option<String>,
+
+    /// Orientation
+    #[arg(long)]
+    orientation: Option<String>,
+
+    /// Title text — when set, generates a full screenshot with title
+    #[arg(short, long)]
+    title: Option<String>,
+
+    /// Font size for title (used with --title)
+    #[arg(long, default_value = "200")]
+    font_size: f32,
+
+    /// Custom font file for title (used with --title)
+    #[arg(long)]
+    font: Option<PathBuf>,
+
+    /// List windows for the app and exit
+    #[arg(long)]
+    list: bool,
+
+    /// Skip device mockup frame (just raw window capture)
+    #[arg(long)]
+    no_mockup: bool,
+}
+
+#[derive(Parser)]
 struct ScreenshotArgs {
     /// Screenshot image (or directory for batch processing)
     input: PathBuf,
@@ -214,6 +258,7 @@ fn main() -> Result<()> {
         Some(Command::Mockup(args)) => run_mockup(args),
         Some(Command::Capture(args)) => run_capture(args),
         Some(Command::Acapture(args)) => run_acapture(args),
+        Some(Command::Wcapture(args)) => run_wcapture(args),
         Some(Command::Screenshot(args)) => run_screenshot(args),
         None => {
             // Backward compat: treat as icon generation if input is provided
@@ -579,6 +624,158 @@ fn run_acapture(args: AcaptureArgs) -> Result<()> {
     } else {
         // Just mockup
         mockup::run(&raw_path, &output, &args.device, &args.orientation)?;
+    }
+
+    // Clean up temp file
+    let _ = std::fs::remove_file(&raw_path);
+
+    Ok(())
+}
+
+fn run_wcapture(args: WcaptureArgs) -> Result<()> {
+    use std::process::Command as Cmd;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    // Find window IDs using Swift + CoreGraphics
+    let swift_code = format!(
+        r#"
+        import CoreGraphics
+        let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as! [[String: Any]]
+        for w in windows {{
+            let name = w["kCGWindowOwnerName"] as? String ?? ""
+            let title = w["kCGWindowName"] as? String ?? ""
+            let wid = w["kCGWindowNumber"] as? Int ?? 0
+            let bounds = w["kCGWindowBounds"] as? [String: Any] ?? [:]
+            let ww = bounds["Width"] as? Int ?? 0
+            let wh = bounds["Height"] as? Int ?? 0
+            if name.localizedCaseInsensitiveContains("{}") && ww > 100 && wh > 100 {{
+                print("\(wid)|\(name)|\(title)|\(ww)x\(wh)")
+            }}
+        }}
+        "#,
+        args.app
+    );
+
+    let output = Cmd::new("swift")
+        .args(["-e", &swift_code])
+        .output()
+        .context("Failed to run swift")?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("Failed to list windows: {}", err);
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let windows: Vec<&str> = stdout.trim().lines().filter(|l| !l.is_empty()).collect();
+
+    if windows.is_empty() {
+        anyhow::bail!(
+            "No window found for \"{}\". Make sure the app is running and has a visible window.",
+            args.app
+        );
+    }
+
+    if args.list {
+        eprintln!("Windows matching \"{}\":", args.app);
+        for w in &windows {
+            let parts: Vec<&str> = w.splitn(4, '|').collect();
+            if parts.len() >= 4 {
+                eprintln!("  ID: {}  App: {}  Title: {}  Size: {}", parts[0], parts[1], parts[2], parts[3]);
+            }
+        }
+        return Ok(());
+    }
+
+    // Use the first matching window
+    let parts: Vec<&str> = windows[0].splitn(4, '|').collect();
+    let window_id = parts[0];
+    let app_name = parts.get(1).unwrap_or(&"");
+    let window_title = parts.get(2).unwrap_or(&"");
+
+    if windows.len() > 1 {
+        eprintln!("Found {} windows for \"{}\", using first:", windows.len(), args.app);
+    }
+    eprintln!("Capturing: {} - {} (ID: {})", app_name, window_title, window_id);
+
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let raw_path = std::env::temp_dir().join(format!("launch-wcapture-{}.png", ts));
+
+    // For Simulator, use xcrun simctl for a clean screenshot (no window chrome)
+    let is_simulator = app_name.to_lowercase().contains("simulator");
+    if is_simulator {
+        eprintln!("Detected Simulator — using simctl for clean capture");
+        let status = Cmd::new("xcrun")
+            .args(["simctl", "io", "booted", "screenshot", "--type=png"])
+            .arg(&raw_path)
+            .status()
+            .context("Failed to run xcrun simctl")?;
+        if !status.success() {
+            anyhow::bail!("Simulator screenshot failed. Is a simulator booted?");
+        }
+    } else {
+        // Generic window capture (-o: no shadow, -x: no sound)
+        let status = Cmd::new("screencapture")
+            .args(["-l", window_id, "-o", "-x"])
+            .arg(&raw_path)
+            .status()
+            .context("Failed to run screencapture")?;
+        if !status.success() {
+            anyhow::bail!("screencapture failed for window ID {}", window_id);
+        }
+    }
+
+    eprintln!("Captured window screenshot");
+
+    // Auto-select device: Simulator → iPhone, other Mac apps → MacBook
+    let device_id = args.device.unwrap_or_else(|| {
+        if is_simulator {
+            device::DEFAULT_DEVICE.to_string()
+        } else {
+            device::DEFAULT_MAC_DEVICE.to_string()
+        }
+    });
+    let orientation = args.orientation.unwrap_or_else(|| {
+        if is_simulator { "portrait".to_string() } else { "front".to_string() }
+    });
+
+    // Determine output path
+    let has_title = args.title.is_some();
+    let default_suffix = if has_title { "screenshot" } else if args.no_mockup { "raw" } else { "mockup" };
+    let safe_name: String = args.app.chars().map(|c| if c.is_alphanumeric() { c } else { '_' }).collect();
+    let output = args.output.unwrap_or_else(|| {
+        PathBuf::from(format!("{}-{}-{}.png", safe_name, ts, default_suffix))
+    });
+
+    // Optionally keep raw screenshot
+    if args.raw {
+        let raw_out = output
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join(format!("{}-{}-raw.png", safe_name, ts));
+        std::fs::copy(&raw_path, &raw_out)?;
+        eprintln!("Raw screenshot saved to {}", raw_out.display());
+    }
+
+    if let Some(title) = &args.title {
+        screenshot::run(
+            &raw_path,
+            &output,
+            title,
+            &device_id,
+            &orientation,
+            args.font.as_deref(),
+            args.font_size,
+        )?;
+    } else if args.no_mockup {
+        std::fs::copy(&raw_path, &output)?;
+        eprintln!("Saved to {}", output.display());
+    } else {
+        mockup::run(&raw_path, &output, &device_id, &orientation)?;
     }
 
     // Clean up temp file

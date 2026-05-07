@@ -32,8 +32,9 @@ pub fn find_device(id: &str) -> Option<&'static DeviceConfig> {
 
 pub const DEFAULT_DEVICE: &str = "apple-iphone-16-pro-black-titanium";
 pub const DEFAULT_ANDROID_DEVICE: &str = "samsung-galaxys21ultra-black";
+pub const DEFAULT_MAC_DEVICE: &str = "apple-macbookair13";
 
-static DEVICES: [DeviceConfig; 8] = [
+static DEVICES: [DeviceConfig; 9] = [
     // iPhone 17 Pro
     DeviceConfig {
         id: "apple-iphone-17-pro-deep-blue",
@@ -182,6 +183,21 @@ static DEVICES: [DeviceConfig; 8] = [
                 screen_coord: [(3400, 200), (3400, 1640), (200, 1640), (200, 200)],
                 template: include_bytes!("../resources/templates/samsung-galaxys21ultra-black-landscape.png"),
                 mask: include_bytes!("../resources/masks/samsung-galaxys21ultra-black-landscape.png"),
+            },
+        ],
+    },
+    // MacBook Air 13"
+    DeviceConfig {
+        id: "apple-macbookair13",
+        name: "MacBook Air 13\"",
+        color: "Midnight",
+        display_resolution: (2560, 1664),
+        orientations: &[
+            OrientationConfig {
+                name: "front",
+                screen_coord: [(329, 217), (2889, 217), (2889, 1881), (329, 1881)],
+                template: include_bytes!("../resources/templates/apple-macbookair13-front.png"),
+                mask: include_bytes!("../resources/masks/apple-macbookair13-front.png"),
             },
         ],
     },

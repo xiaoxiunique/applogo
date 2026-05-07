@@ -10,28 +10,39 @@ use crate::device::{self, DeviceConfig, OrientationConfig};
 const MARKER_KEY: &str = "launch";
 const MARKER_VALUE: &str = "mockup";
 
+/// Embedded macOS desktop wallpaper for MacBook mockups.
+const MAC_DESKTOP_BG: &[u8] = include_bytes!("../resources/mac-desktop-bg.jpg");
+
 /// Resize screenshot to fit device display resolution with letterboxing.
-fn fit_to_resolution(img: &DynamicImage, width: u32, height: u32) -> RgbaImage {
+fn fit_to_resolution(img: &DynamicImage, width: u32, height: u32, auto_rotate: bool, fill_ratio: f64, bg: Option<&RgbaImage>) -> RgbaImage {
     let (iw, ih) = img.dimensions();
     let img_ratio = iw as f64 / ih as f64;
     let dev_ratio = width as f64 / height as f64;
 
-    // Auto-rotate if screenshot orientation doesn't match device
-    let img = if (img_ratio > 1.0) != (dev_ratio > 1.0) {
+    // Auto-rotate if screenshot orientation doesn't match device (phones only)
+    let img = if auto_rotate && (img_ratio > 1.0) != (dev_ratio > 1.0) {
         img.rotate90()
     } else {
         img.clone()
     };
     let (iw, ih) = img.dimensions();
 
-    // Scale to fit
-    let scale = (width as f64 / iw as f64).min(height as f64 / ih as f64);
+    // Scale to fit, applying fill_ratio to leave margins
+    let max_w = (width as f64 * fill_ratio) as u32;
+    let max_h = (height as f64 * fill_ratio) as u32;
+    let scale = (max_w as f64 / iw as f64).min(max_h as f64 / ih as f64);
     let new_w = (iw as f64 * scale).round() as u32;
     let new_h = (ih as f64 * scale).round() as u32;
     let resized = img.resize_exact(new_w, new_h, image::imageops::FilterType::Lanczos3);
 
-    // Letterbox on black background
-    let mut canvas = RgbaImage::from_pixel(width, height, image::Rgba([0, 0, 0, 255]));
+    // Background: use provided image or solid black
+    let mut canvas = if let Some(bg_img) = bg {
+        let bg_resized = image::imageops::resize(bg_img, width, height, image::imageops::FilterType::Lanczos3);
+        RgbaImage::from_raw(width, height, bg_resized.into_raw()).unwrap()
+    } else {
+        RgbaImage::from_pixel(width, height, image::Rgba([0, 0, 0, 255]))
+    };
+
     let offset_x = (width - new_w) / 2;
     let offset_y = (height - new_h) / 2;
     image::imageops::overlay(
@@ -54,6 +65,7 @@ fn compose(
     screenshot: &DynamicImage,
     device: &DeviceConfig,
     orientation: &OrientationConfig,
+    background: Option<&RgbaImage>,
 ) -> Result<RgbaImage> {
     let (dw, dh) = device.display_resolution;
 
@@ -64,8 +76,24 @@ fn compose(
         (dw, dh)
     };
 
+    // Auto-rotate only for phone orientations (portrait/landscape), not for "front" (laptops)
+    let auto_rotate = orientation.name == "portrait" || orientation.name == "landscape";
+    // For laptops, scale down to leave margins around the app window
+    let fill_ratio = if orientation.name == "front" { 0.85 } else { 1.0 };
+
+    // Use embedded desktop wallpaper for "front" (laptop) when no custom background
+    let default_bg;
+    let bg = if orientation.name == "front" && background.is_none() {
+        default_bg = image::load_from_memory(MAC_DESKTOP_BG)
+            .context("Failed to decode embedded wallpaper")?
+            .to_rgba8();
+        Some(&default_bg)
+    } else {
+        background
+    };
+
     // 1. Resize screenshot to display resolution
-    let fitted = fit_to_resolution(screenshot, dw, dh);
+    let fitted = fit_to_resolution(screenshot, dw, dh, auto_rotate, fill_ratio, bg);
 
     // 2. Load template and mask from embedded bytes
     let template = load_from_bytes(orientation.template)?;
@@ -163,6 +191,17 @@ pub fn run(
     device_id: &str,
     orientation_name: &str,
 ) -> Result<()> {
+    run_with_bg(input, output, device_id, orientation_name, None)
+}
+
+/// Run the mockup generation with an optional desktop background.
+pub fn run_with_bg(
+    input: &Path,
+    output: &Path,
+    device_id: &str,
+    orientation_name: &str,
+    background: Option<&Path>,
+) -> Result<()> {
     let device =
         device::find_device(device_id).with_context(|| format!("Unknown device: {}", device_id))?;
 
@@ -184,7 +223,15 @@ pub fn run(
         device.name, orientation_name
     );
 
-    let result = compose(&screenshot, device, orientation)?;
+    let bg_img = if let Some(bg_path) = background {
+        Some(image::open(bg_path)
+            .with_context(|| format!("Failed to open background: {}", bg_path.display()))?
+            .to_rgba8())
+    } else {
+        None
+    };
+
+    let result = compose(&screenshot, device, orientation, bg_img.as_ref())?;
     save_with_marker(&result, output)?;
 
     eprintln!("Saved mockup to {}", output.display());
