@@ -1,10 +1,12 @@
 # applogo
 
-Generate app icons for all platforms from a single image.
+Generate app icons and device mockups from a single image.
 
-A fast CLI tool that takes a 1024×1024 source image and produces correctly sized icons for **iPhone, iPad, watchOS, macOS, and Android**, packaged into a single ZIP file with Xcode Asset Catalog (`Contents.json`) included.
+A fast CLI tool with two features:
+- **Icon generation**: takes a 1024×1024 source image and produces correctly sized icons for iPhone, iPad, watchOS, macOS, and Android
+- **Device mockup**: wraps a screenshot in a realistic iPhone device frame (iPhone 14/15 series)
 
-Inspired by [appicon.co](https://www.appicon.co/).
+Inspired by [appicon.co](https://www.appicon.co/) and [mockuphone.com](https://mockuphone.com/).
 
 ## Install
 
@@ -42,6 +44,8 @@ cargo build --release
 
 ## Usage
 
+### Icon Generation
+
 ```bash
 # Generate icons for all platforms
 applogo icon.png
@@ -59,19 +63,26 @@ applogo icon.png --android-filename app_icon.png
 applogo icon.png --no-stores
 ```
 
-### Options
+### Device Mockup
 
-```
-Arguments:
-  <INPUT>                        Source image path (1024x1024 recommended)
+```bash
+# Wrap screenshot in iPhone 15 Pro frame (default)
+applogo mockup screenshot.png
 
-Options:
-  -o, --output <PATH>            Output ZIP file path [default: AppIcons.zip]
-  -p, --platforms <LIST>         Platforms: iphone,ipad,watch,mac,android,all [default: all]
-      --android-filename <NAME>  Android icon filename [default: ic_launcher.png]
-      --no-stores                Skip appstore.png and playstore.png generation
-  -h, --help                     Print help
+# Choose a different device
+applogo mockup screenshot.png -d apple-iphone-15-black
+
+# Landscape orientation
+applogo mockup screenshot.png --orientation landscape
+
+# Custom output path
+applogo mockup screenshot.png -o my-mockup.png
+
+# List available devices
+applogo mockup --list-devices
 ```
+
+Available devices: iPhone 15, iPhone 15 Pro, iPhone 15 Pro Max, iPhone 14 Pro, iPhone 14. Device frame templates are auto-downloaded and cached at `~/.applogo/devices/` on first use.
 
 ## Output
 
