@@ -10,7 +10,7 @@ Inspired by [appicon.co](https://www.appicon.co/).
 
 ### Pre-built binaries
 
-Download from [GitHub Releases](https://github.com/user/applogo/releases/latest):
+Download from [GitHub Releases](https://github.com/xiaoxiunique/applogo/releases/latest):
 
 | Platform | Download |
 |----------|----------|
@@ -21,7 +21,7 @@ Download from [GitHub Releases](https://github.com/user/applogo/releases/latest)
 
 ```bash
 # Example: macOS Apple Silicon
-curl -L https://github.com/user/applogo/releases/latest/download/applogo-aarch64-apple-darwin.tar.gz | tar xz
+curl -L https://github.com/xiaoxiunique/applogo/releases/latest/download/applogo-aarch64-apple-darwin.tar.gz | tar xz
 sudo mv applogo /usr/local/bin/
 ```
 
@@ -34,7 +34,7 @@ cargo install --path .
 Or:
 
 ```bash
-git clone https://github.com/user/applogo.git
+git clone https://github.com/xiaoxiunique/applogo.git
 cd applogo
 cargo build --release
 # binary at target/release/applogo
