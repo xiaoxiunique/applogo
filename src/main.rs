@@ -4,6 +4,7 @@ mod contents_json;
 mod device;
 mod mockup;
 mod resize;
+mod screenshot;
 mod zip;
 
 use std::path::{Path, PathBuf};
@@ -46,6 +47,8 @@ enum Command {
     Mockup(MockupArgs),
     /// Capture screenshot from iOS Simulator and apply mockup
     Capture(CaptureArgs),
+    /// Generate App Store screenshot with title and device mockup
+    Screenshot(ScreenshotArgs),
 }
 
 #[derive(Parser)]
@@ -115,6 +118,36 @@ struct CaptureArgs {
     raw: bool,
 }
 
+#[derive(Parser)]
+struct ScreenshotArgs {
+    /// Screenshot image (or directory for batch processing)
+    input: PathBuf,
+
+    /// Title text to display above the device mockup
+    #[arg(short, long)]
+    title: String,
+
+    /// Output file or directory path
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+
+    /// Device frame ID
+    #[arg(short, long, default_value = device::DEFAULT_DEVICE)]
+    device: String,
+
+    /// Orientation: portrait or landscape
+    #[arg(long, default_value = "portrait")]
+    orientation: String,
+
+    /// Custom font file (.ttf/.otf/.ttc)
+    #[arg(long)]
+    font: Option<PathBuf>,
+
+    /// Font size in pixels
+    #[arg(long, default_value = "120")]
+    font_size: f32,
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -122,6 +155,7 @@ fn main() -> Result<()> {
         Some(Command::Icon(args)) => run_icon(args),
         Some(Command::Mockup(args)) => run_mockup(args),
         Some(Command::Capture(args)) => run_capture(args),
+        Some(Command::Screenshot(args)) => run_screenshot(args),
         None => {
             // Backward compat: treat as icon generation if input is provided
             if let Some(input) = cli.input {
@@ -344,4 +378,59 @@ fn run_capture(args: CaptureArgs) -> Result<()> {
     let _ = std::fs::remove_file(&raw_path);
 
     Ok(())
+}
+
+fn run_screenshot(args: ScreenshotArgs) -> Result<()> {
+    let font_path = args.font.as_deref();
+
+    if args.input.is_dir() {
+        let out_dir = args.output.unwrap_or_else(|| args.input.join("screenshots"));
+        std::fs::create_dir_all(&out_dir)?;
+
+        let mut count = 0;
+        for entry in std::fs::read_dir(&args.input)? {
+            let entry = entry?;
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let ext = path
+                .extension()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_lowercase();
+            if !matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "webp") {
+                continue;
+            }
+            let stem = path.file_stem().unwrap_or_default().to_string_lossy();
+            let out_path = out_dir.join(format!("{}-screenshot.png", stem));
+            screenshot::run(
+                &path,
+                &out_path,
+                &args.title,
+                &args.device,
+                &args.orientation,
+                font_path,
+                args.font_size,
+            )?;
+            count += 1;
+        }
+        eprintln!("Processed {} images -> {}", count, out_dir.display());
+        return Ok(());
+    }
+
+    let output = args.output.unwrap_or_else(|| {
+        let stem = args.input.file_stem().unwrap_or_default().to_string_lossy();
+        PathBuf::from(format!("{}-screenshot.png", stem))
+    });
+
+    screenshot::run(
+        &args.input,
+        &output,
+        &args.title,
+        &args.device,
+        &args.orientation,
+        font_path,
+        args.font_size,
+    )
 }
