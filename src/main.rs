@@ -101,7 +101,7 @@ struct MockupArgs {
 
 #[derive(Parser)]
 struct CaptureArgs {
-    /// Output filename (default: screenshot-{timestamp}-mockup.png)
+    /// Output filename
     #[arg(short, long)]
     output: Option<PathBuf>,
 
@@ -116,6 +116,18 @@ struct CaptureArgs {
     /// Save raw screenshot too (without mockup frame)
     #[arg(long)]
     raw: bool,
+
+    /// Title text — when set, generates a full App Store screenshot
+    #[arg(short, long)]
+    title: Option<String>,
+
+    /// Font size for title (used with --title)
+    #[arg(long, default_value = "120")]
+    font_size: f32,
+
+    /// Custom font file for title (used with --title)
+    #[arg(long)]
+    font: Option<PathBuf>,
 }
 
 #[derive(Parser)]
@@ -357,8 +369,10 @@ fn run_capture(args: CaptureArgs) -> Result<()> {
     eprintln!("Captured simulator screenshot");
 
     // Determine output path
+    let has_title = args.title.is_some();
+    let default_suffix = if has_title { "screenshot" } else { "mockup" };
     let output = args.output.unwrap_or_else(|| {
-        PathBuf::from(format!("screenshot-{}-mockup.png", ts))
+        PathBuf::from(format!("screenshot-{}-{}.png", ts, default_suffix))
     });
 
     // Optionally keep raw screenshot
@@ -371,8 +385,21 @@ fn run_capture(args: CaptureArgs) -> Result<()> {
         eprintln!("Raw screenshot saved to {}", raw_out.display());
     }
 
-    // Apply mockup
-    mockup::run(&raw_path, &output, &args.device, &args.orientation)?;
+    if let Some(title) = &args.title {
+        // Full App Store screenshot: capture → mockup → title
+        screenshot::run(
+            &raw_path,
+            &output,
+            title,
+            &args.device,
+            &args.orientation,
+            args.font.as_deref(),
+            args.font_size,
+        )?;
+    } else {
+        // Just mockup
+        mockup::run(&raw_path, &output, &args.device, &args.orientation)?;
+    }
 
     // Clean up temp file
     let _ = std::fs::remove_file(&raw_path);
