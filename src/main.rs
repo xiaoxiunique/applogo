@@ -6,9 +6,9 @@ mod mockup;
 mod resize;
 mod zip;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 use config::Platform;
@@ -44,6 +44,8 @@ enum Command {
     Icon(IconArgs),
     /// Wrap screenshot in a device frame mockup
     Mockup(MockupArgs),
+    /// Capture screenshot from iOS Simulator and apply mockup
+    Capture(CaptureArgs),
 }
 
 #[derive(Parser)]
@@ -94,12 +96,32 @@ struct MockupArgs {
     list_devices: bool,
 }
 
+#[derive(Parser)]
+struct CaptureArgs {
+    /// Output filename (default: screenshot-{timestamp}-mockup.png)
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+
+    /// Device frame ID
+    #[arg(short, long, default_value = device::DEFAULT_DEVICE)]
+    device: String,
+
+    /// Orientation: portrait or landscape
+    #[arg(long, default_value = "portrait")]
+    orientation: String,
+
+    /// Save raw screenshot too (without mockup frame)
+    #[arg(long)]
+    raw: bool,
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
         Some(Command::Icon(args)) => run_icon(args),
         Some(Command::Mockup(args)) => run_mockup(args),
+        Some(Command::Capture(args)) => run_capture(args),
         None => {
             // Backward compat: treat as icon generation if input is provided
             if let Some(input) = cli.input {
@@ -269,4 +291,57 @@ fn run_mockup(args: MockupArgs) -> Result<()> {
     });
 
     mockup::run(&input, &output, &args.device, &args.orientation)
+}
+
+fn run_capture(args: CaptureArgs) -> Result<()> {
+    use std::process::Command as Cmd;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    // Generate timestamp for filename
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let raw_path = std::env::temp_dir().join(format!("applogo-capture-{}.png", ts));
+
+    // Capture from booted simulator
+    eprintln!("Capturing screenshot from iOS Simulator...");
+    let status = Cmd::new("xcrun")
+        .args(["simctl", "io", "booted", "screenshot", "--type=png"])
+        .arg(&raw_path)
+        .status()
+        .context("Failed to run xcrun simctl. Is Xcode installed?")?;
+
+    if !status.success() {
+        anyhow::bail!(
+            "Simulator screenshot failed. Make sure a simulator is running.\n\
+             Start one with: open -a Simulator"
+        );
+    }
+
+    eprintln!("Captured simulator screenshot");
+
+    // Determine output path
+    let output = args.output.unwrap_or_else(|| {
+        PathBuf::from(format!("screenshot-{}-mockup.png", ts))
+    });
+
+    // Optionally keep raw screenshot
+    if args.raw {
+        let raw_out = output
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join(format!("screenshot-{}-raw.png", ts));
+        std::fs::copy(&raw_path, &raw_out)?;
+        eprintln!("Raw screenshot saved to {}", raw_out.display());
+    }
+
+    // Apply mockup
+    mockup::run(&raw_path, &output, &args.device, &args.orientation)?;
+
+    // Clean up temp file
+    let _ = std::fs::remove_file(&raw_path);
+
+    Ok(())
 }
