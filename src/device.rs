@@ -30,9 +30,39 @@ pub fn find_device(id: &str) -> Option<&'static DeviceConfig> {
     DEVICES.iter().find(|d| d.id == id)
 }
 
-pub const DEFAULT_DEVICE: &str = "apple-iphone-15-pro-black-titanium";
+pub const DEFAULT_DEVICE: &str = "apple-iphone-16-pro-black-titanium";
 
-static DEVICES: [DeviceConfig; 5] = [
+static DEVICES: [DeviceConfig; 7] = [
+    // iPhone 17 Pro
+    DeviceConfig {
+        id: "apple-iphone-17-pro-deep-blue",
+        name: "iPhone 17 Pro",
+        color: "Deep Blue",
+        display_resolution: (1206, 2622),
+        orientations: &[
+            OrientationConfig {
+                name: "portrait",
+                screen_coord: [(100, 100), (1305, 100), (1305, 2721), (100, 2721)],
+                template: include_bytes!("../resources/templates/apple-iphone-17-pro-deep-blue-portrait.png"),
+                mask: include_bytes!("../resources/masks/apple-iphone-17-pro-deep-blue-portrait.png"),
+            },
+        ],
+    },
+    // iPhone 16 Pro
+    DeviceConfig {
+        id: "apple-iphone-16-pro-black-titanium",
+        name: "iPhone 16 Pro",
+        color: "Black Titanium",
+        display_resolution: (1206, 2622),
+        orientations: &[
+            OrientationConfig {
+                name: "portrait",
+                screen_coord: [(102, 100), (1307, 100), (1307, 2721), (102, 2721)],
+                template: include_bytes!("../resources/templates/apple-iphone-16-pro-black-titanium-portrait.png"),
+                mask: include_bytes!("../resources/masks/apple-iphone-16-pro-black-titanium-portrait.png"),
+            },
+        ],
+    },
     DeviceConfig {
         id: "apple-iphone-15-black",
         name: "iPhone 15",
