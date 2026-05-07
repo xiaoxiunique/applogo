@@ -1,30 +1,29 @@
-# applogo
+# Launch
 
-Generate app icons and device mockups from a single image.
+App launch toolkit — icons, mockups, and more.
 
-A fast CLI tool with two features:
-- **Icon generation**: takes a 1024×1024 source image and produces correctly sized icons for iPhone, iPad, watchOS, macOS, and Android
-- **Device mockup**: wraps a screenshot in a realistic iPhone device frame (iPhone 14/15 series)
-
-Inspired by [appicon.co](https://www.appicon.co/) and [mockuphone.com](https://mockuphone.com/).
+A CLI tool for the app development lifecycle:
+- **`launch icon`** — Generate app icons for all platforms (iPhone, iPad, watchOS, macOS, Android)
+- **`launch mockup`** — Wrap screenshots in realistic device frames (iPhone 14–17 Pro)
+- **`launch capture`** — Capture from iOS Simulator and apply mockup in one step
 
 ## Install
 
 ### Pre-built binaries
 
-Download from [GitHub Releases](https://github.com/xiaoxiunique/applogo/releases/latest):
+Download from [GitHub Releases](https://github.com/xiaoxiunique/launch/releases/latest):
 
 | Platform | Download |
 |----------|----------|
-| macOS (Apple Silicon) | `applogo-aarch64-apple-darwin.tar.gz` |
-| macOS (Intel) | `applogo-x86_64-apple-darwin.tar.gz` |
-| Linux (x86_64) | `applogo-x86_64-unknown-linux-gnu.tar.gz` |
-| Windows (x86_64) | `applogo-x86_64-pc-windows-msvc.zip` |
+| macOS (Apple Silicon) | `launch-aarch64-apple-darwin.tar.gz` |
+| macOS (Intel) | `launch-x86_64-apple-darwin.tar.gz` |
+| Linux (x86_64) | `launch-x86_64-unknown-linux-gnu.tar.gz` |
+| Windows (x86_64) | `launch-x86_64-pc-windows-msvc.zip` |
 
 ```bash
 # Example: macOS Apple Silicon
-curl -L https://github.com/xiaoxiunique/applogo/releases/latest/download/applogo-aarch64-apple-darwin.tar.gz | tar xz
-sudo mv applogo /usr/local/bin/
+curl -L https://github.com/xiaoxiunique/launch/releases/latest/download/launch-aarch64-apple-darwin.tar.gz | tar xz
+sudo mv launch /usr/local/bin/
 ```
 
 ### Build from source
@@ -36,10 +35,10 @@ cargo install --path .
 Or:
 
 ```bash
-git clone https://github.com/xiaoxiunique/applogo.git
-cd applogo
+git clone https://github.com/xiaoxiunique/launch.git
+cd launch
 cargo build --release
-# binary at target/release/applogo
+# binary at target/release/launch
 ```
 
 ## Usage
@@ -47,79 +46,76 @@ cargo build --release
 ### Icon Generation
 
 ```bash
-# Generate icons for all platforms
-applogo icon.png
+# Generate icons for all platforms (1024x1024 image recommended)
+launch icon icon.png
+
+# Also works without subcommand (backward compat)
+launch icon.png
 
 # Specify output path
-applogo icon.png -o MyIcons.zip
+launch icon icon.png -o MyIcons.zip
 
 # Only generate for specific platforms
-applogo icon.png -p iphone,android
-
-# Custom Android icon filename
-applogo icon.png --android-filename app_icon.png
+launch icon icon.png -p iphone,android
 
 # Skip App Store / Play Store icons
-applogo icon.png --no-stores
+launch icon icon.png --no-stores
 ```
 
 ### Device Mockup
 
 ```bash
-# Wrap screenshot in iPhone 15 Pro frame (default)
-applogo mockup screenshot.png
+# Wrap screenshot in iPhone 16 Pro frame (default)
+launch mockup screenshot.png
+
+# Read from clipboard
+launch mockup -c
+
+# Batch process a folder
+launch mockup ./screenshots/
 
 # Choose a different device
-applogo mockup screenshot.png -d apple-iphone-15-black
+launch mockup screenshot.png -d apple-iphone-17-pro-deep-blue
 
 # Landscape orientation
-applogo mockup screenshot.png --orientation landscape
-
-# Custom output path
-applogo mockup screenshot.png -o my-mockup.png
+launch mockup screenshot.png --orientation landscape
 
 # List available devices
-applogo mockup --list-devices
+launch mockup --list-devices
 ```
 
-Available devices: iPhone 15, iPhone 15 Pro, iPhone 15 Pro Max, iPhone 14 Pro, iPhone 14. Device frame templates are auto-downloaded and cached at `~/.applogo/devices/` on first use.
+### Simulator Capture
 
-## Output
+```bash
+# Capture from running iOS Simulator + apply mockup
+launch capture
 
-```
-AppIcons.zip
-├── Assets.xcassets/AppIcon.appiconset/
-│   ├── Contents.json
-│   └── *.png (all Apple platform sizes)
-├── android/
-│   ├── mipmap-mdpi/ic_launcher.png      (48×48)
-│   ├── mipmap-hdpi/ic_launcher.png      (72×72)
-│   ├── mipmap-xhdpi/ic_launcher.png     (96×96)
-│   ├── mipmap-xxhdpi/ic_launcher.png    (144×144)
-│   └── mipmap-xxxhdpi/ic_launcher.png   (192×192)
-├── appstore.png                          (1024×1024)
-└── playstore.png                         (512×512)
+# Also save the raw screenshot
+launch capture --raw
+
+# Choose device frame
+launch capture -d apple-iphone-15-pro-black-titanium
 ```
 
-### Icon counts per platform
+## Available Devices
 
-| Platform | Sizes |
-|----------|-------|
-| iPhone   | 12 (20px – 1024px) |
-| iPad     | 13 (20px – 167px) |
-| watchOS  | 17 (48px – 1024px) |
-| macOS    | 10 (16px – 1024px) |
-| Android  | 5 (mdpi – xxxhdpi) |
-| Stores   | 2 (App Store + Play Store) |
+| Device | ID |
+|--------|----|
+| iPhone 17 Pro | `apple-iphone-17-pro-deep-blue` |
+| iPhone 16 Pro | `apple-iphone-16-pro-black-titanium` (default) |
+| iPhone 15 | `apple-iphone-15-black` |
+| iPhone 15 Pro | `apple-iphone-15-pro-black-titanium` |
+| iPhone 15 Pro Max | `apple-iphone-15-pro-max-black-titanium` |
+| iPhone 14 Pro | `apple-iphone14pro-spaceblack` |
+| iPhone 14 | `apple-iphone14-midnight` |
 
-## How it works
+## Features
 
-- Loads source image with the [image](https://crates.io/crates/image) crate
-- Resizes using **Lanczos3** filter for high-quality downsampling
-- Apple platform icons get a white background fill (matching App Store requirements)
-- Android and Play Store icons preserve transparency
-- Deduplicates shared sizes across platforms (resize once, reference multiple times)
-- Packages everything into a ZIP with [zip](https://crates.io/crates/zip) crate
+- Invisible PNG marker prevents reprocessing — batch mode skips already-processed images
+- Device templates embedded in binary — fully offline, zero network requests
+- High-quality Lanczos3 downsampling for icons
+- Xcode Asset Catalog (`Contents.json`) included in icon ZIP output
+- Clipboard support for quick mockups (`-c` flag)
 
 ## License
 

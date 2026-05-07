@@ -1,8 +1,8 @@
 [package]
-name = "applogo"
+name = "launch"
 version = "0.1.0"
 edition = "2021"
-description = "Generate app icons and device mockups from a single image"
+description = "App launch toolkit — icons, mockups, and more"
 license = "MIT"
 
 [dependencies]

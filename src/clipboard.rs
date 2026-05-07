@@ -19,7 +19,7 @@ pub fn save_clipboard_image() -> Result<PathBuf> {
     )
     .context("Failed to parse clipboard image data")?;
 
-    let path = std::env::temp_dir().join("applogo-clipboard.png");
+    let path = std::env::temp_dir().join("launch-clipboard.png");
     rgba.save_with_format(&path, ImageFormat::Png)
         .context("Failed to save clipboard image")?;
 

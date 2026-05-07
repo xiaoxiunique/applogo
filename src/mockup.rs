@@ -7,7 +7,7 @@ use image::{DynamicImage, GenericImageView, RgbaImage};
 
 use crate::device::{self, DeviceConfig, OrientationConfig};
 
-const MARKER_KEY: &str = "applogo";
+const MARKER_KEY: &str = "launch";
 const MARKER_VALUE: &str = "mockup";
 
 /// Resize screenshot to fit device display resolution with letterboxing.
@@ -125,7 +125,7 @@ fn compose(
     Ok(result)
 }
 
-/// Check if a PNG file was already processed by applogo.
+/// Check if a PNG file was already processed by launch.
 pub fn is_already_processed(path: &Path) -> bool {
     let Ok(file) = File::open(path) else {
         return false;
@@ -141,7 +141,7 @@ pub fn is_already_processed(path: &Path) -> bool {
         .any(|t| t.keyword == MARKER_KEY && t.text == MARKER_VALUE)
 }
 
-/// Save an RGBA image as PNG with the applogo marker.
+/// Save an RGBA image as PNG with the launch marker.
 fn save_with_marker(img: &RgbaImage, output: &Path) -> Result<()> {
     let file = File::create(output)
         .with_context(|| format!("Failed to create {}", output.display()))?;

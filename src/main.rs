@@ -15,7 +15,7 @@ use config::Platform;
 use zip::ZipEntry;
 
 #[derive(Parser)]
-#[command(name = "applogo", about = "Generate app icons and device mockups")]
+#[command(name = "launch", about = "App launch toolkit — icons, mockups, and more")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
@@ -241,9 +241,9 @@ fn run_mockup(args: MockupArgs) -> Result<()> {
         args.input.ok_or_else(|| {
             anyhow::anyhow!(
                 "Provide a screenshot path, directory, or use -c to read from clipboard.\n\
-                 Usage: applogo mockup <screenshot.png>\n\
-                        applogo mockup <screenshots_dir/>\n\
-                        applogo mockup -c"
+                 Usage: launch mockup <screenshot.png>\n\
+                        launch mockup <screenshots_dir/>\n\
+                        launch mockup -c"
             )
         })?
     };
@@ -303,7 +303,7 @@ fn run_capture(args: CaptureArgs) -> Result<()> {
         .unwrap()
         .as_secs();
 
-    let raw_path = std::env::temp_dir().join(format!("applogo-capture-{}.png", ts));
+    let raw_path = std::env::temp_dir().join(format!("launch-capture-{}.png", ts));
 
     // Capture from booted simulator
     eprintln!("Capturing screenshot from iOS Simulator...");

@@ -39,28 +39,28 @@ jobs:
         if: matrix.os != 'windows-latest'
         run: |
           mkdir -p staging
-          cp target/${{ matrix.target }}/release/applogo staging/
+          cp target/${{ matrix.target }}/release/launch staging/
           cp README.md LICENSE staging/
           cd staging
-          tar czf ../applogo-${{ matrix.target }}.tar.gz *
+          tar czf ../launch-${{ matrix.target }}.tar.gz *
         shell: bash
 
       - name: Package (windows)
         if: matrix.os == 'windows-latest'
         run: |
           mkdir staging
-          copy target\${{ matrix.target }}\release\applogo.exe staging\
+          copy target\${{ matrix.target }}\release\launch.exe staging\
           copy README.md staging\
           copy LICENSE staging\
           cd staging
-          7z a ..\applogo-${{ matrix.target }}.zip *
+          7z a ..\launch-${{ matrix.target }}.zip *
         shell: cmd
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: applogo-${{ matrix.target }}
-          path: applogo-${{ matrix.target }}.*
+          name: launch-${{ matrix.target }}
+          path: launch-${{ matrix.target }}.*
 
   release:
     needs: build
@@ -76,5 +76,5 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            applogo-*.tar.gz
-            applogo-*.zip
+            launch-*.tar.gz
+            launch-*.zip

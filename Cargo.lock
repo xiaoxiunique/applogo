@@ -83,20 +83,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
-name = "applogo"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arboard",
- "clap",
- "image",
- "png",
- "serde",
- "serde_json",
- "zip",
-]
-
-[[package]]
 name = "arbitrary"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -635,6 +621,20 @@ checksum = "9afb3de4395d6b3e67a780b6de64b51c978ecf11cb9a462c66be7d4ca9039d33"
 dependencies = [
  "getrandom",
  "libc",
+]
+
+[[package]]
+name = "launch"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arboard",
+ "clap",
+ "image",
+ "png",
+ "serde",
+ "serde_json",
+ "zip",
 ]
 
 [[package]]
