@@ -122,7 +122,7 @@ struct CaptureArgs {
     title: Option<String>,
 
     /// Font size for title (used with --title)
-    #[arg(long, default_value = "120")]
+    #[arg(long, default_value = "200")]
     font_size: f32,
 
     /// Custom font file for title (used with --title)
@@ -156,7 +156,7 @@ struct ScreenshotArgs {
     font: Option<PathBuf>,
 
     /// Font size in pixels
-    #[arg(long, default_value = "120")]
+    #[arg(long, default_value = "200")]
     font_size: f32,
 }
 

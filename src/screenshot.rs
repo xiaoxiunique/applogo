@@ -5,52 +5,38 @@ use anyhow::{Context, Result};
 use image::{Rgba, RgbaImage};
 use imageproc::drawing::draw_text_mut;
 
-use crate::device;
 use crate::mockup;
 
 /// Default canvas size (iPhone 6.5" App Store screenshot)
 const CANVAS_W: u32 = 1242;
 const CANVAS_H: u32 = 2688;
 
-/// Background color — light gray
-const BG_COLOR: Rgba<u8> = Rgba([237, 237, 237, 255]);
+/// Gradient top color — #EEEEEE
+const BG_TOP: [u8; 3] = [0xEE, 0xEE, 0xEE];
+/// Gradient bottom color — #E4E4E4
+const BG_BOTTOM: [u8; 3] = [0xE4, 0xE4, 0xE4];
+/// Gradient end position (fraction of canvas height)
+const BG_GRADIENT_END: f32 = 0.77;
 
-/// Title text color — black
-const TEXT_COLOR: Rgba<u8> = Rgba([0, 0, 0, 255]);
-
-/// Default font size
-const FONT_SIZE: f32 = 120.0;
+/// Title text color — #525252
+const TEXT_COLOR: Rgba<u8> = Rgba([82, 82, 82, 255]);
 
 /// Title vertical center position (fraction of canvas height from top)
 const TITLE_Y_RATIO: f32 = 0.12;
 
 /// Mockup top position (fraction of canvas height)
-const MOCKUP_Y_RATIO: f32 = 0.22;
+const MOCKUP_Y_RATIO: f32 = 0.20;
 
 /// Mockup width (fraction of canvas width)
-const MOCKUP_W_RATIO: f32 = 0.68;
+const MOCKUP_W_RATIO: f32 = 0.85;
 
-/// Load system CJK font (macOS).
-fn load_system_font() -> Result<FontVec> {
-    let candidates = [
-        ("/System/Library/Fonts/STHeiti Medium.ttc", 1u32), // Heiti SC Medium
-        ("/System/Library/Fonts/STHeiti Medium.ttc", 0),     // Heiti TC Medium
-        ("/System/Library/Fonts/Hiragino Sans GB.ttc", 0),   // Hiragino Sans GB
-    ];
+/// Embedded default font (优设标题黑)
+const EMBEDDED_FONT: &[u8] = include_bytes!("../resources/YouSheBiaoTiHei.ttf");
 
-    for (path, index) in candidates {
-        if Path::new(path).exists() {
-            let data = std::fs::read(path)
-                .with_context(|| format!("Failed to read font: {}", path))?;
-            if let Ok(font) = FontVec::try_from_vec_and_index(data, index) {
-                return Ok(font);
-            }
-        }
-    }
-
-    anyhow::bail!(
-        "No CJK font found. Use --font to specify a .ttf/.otf/.ttc font file."
-    )
+/// Load embedded default font.
+fn load_embedded_font() -> Result<FontVec> {
+    FontVec::try_from_vec(EMBEDDED_FONT.to_vec())
+        .map_err(|_| anyhow::anyhow!("Failed to load embedded font"))
 }
 
 /// Load font from a file path.
@@ -108,11 +94,25 @@ pub fn run(
     let font = if let Some(fp) = font_path {
         load_font_file(fp)?
     } else {
-        load_system_font()?
+        load_embedded_font()?
     };
 
-    // 3. Create canvas
-    let mut canvas = RgbaImage::from_pixel(CANVAS_W, CANVAS_H, BG_COLOR);
+    // 3. Create canvas with linear gradient background
+    let mut canvas = RgbaImage::new(CANVAS_W, CANVAS_H);
+    let gradient_end_y = (CANVAS_H as f32 * BG_GRADIENT_END) as u32;
+    for y in 0..CANVAS_H {
+        let t = if y < gradient_end_y {
+            y as f32 / gradient_end_y as f32
+        } else {
+            1.0
+        };
+        let r = BG_TOP[0] as f32 + (BG_BOTTOM[0] as f32 - BG_TOP[0] as f32) * t;
+        let g = BG_TOP[1] as f32 + (BG_BOTTOM[1] as f32 - BG_TOP[1] as f32) * t;
+        let b = BG_TOP[2] as f32 + (BG_BOTTOM[2] as f32 - BG_TOP[2] as f32) * t;
+        for x in 0..CANVAS_W {
+            canvas.put_pixel(x, y, Rgba([r as u8, g as u8, b as u8, 255]));
+        }
+    }
 
     // 4. Scale and place mockup
     let mockup_target_w = (CANVAS_W as f32 * MOCKUP_W_RATIO) as u32;
