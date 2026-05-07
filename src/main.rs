@@ -246,6 +246,10 @@ fn run_mockup(args: MockupArgs) -> Result<()> {
             if !matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "webp") {
                 continue;
             }
+            if mockup::is_already_processed(&path) {
+                eprintln!("Skipping {} (already processed)", path.display());
+                continue;
+            }
             let stem = path.file_stem().unwrap_or_default().to_string_lossy();
             let out_path = out_dir.join(format!("{}-mockup.png", stem));
             mockup::run(&path, &out_path, &args.device, &args.orientation)?;
@@ -253,6 +257,10 @@ fn run_mockup(args: MockupArgs) -> Result<()> {
         }
         eprintln!("Processed {} images -> {}", count, out_dir.display());
         return Ok(());
+    }
+
+    if mockup::is_already_processed(&input) {
+        anyhow::bail!("Image already has mockup frame: {}", input.display());
     }
 
     let output = args.output.unwrap_or_else(|| {

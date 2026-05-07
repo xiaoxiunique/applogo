@@ -90,6 +90,7 @@ dependencies = [
  "arboard",
  "clap",
  "image",
+ "png",
  "serde",
  "serde_json",
  "zip",

@@ -1,10 +1,14 @@
-use std::io::Cursor;
+use std::fs::File;
+use std::io::{BufReader, BufWriter};
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use image::{DynamicImage, GenericImageView, ImageFormat, RgbaImage};
+use image::{DynamicImage, GenericImageView, RgbaImage};
 
 use crate::device::{self, DeviceConfig, OrientationConfig};
+
+const MARKER_KEY: &str = "applogo";
+const MARKER_VALUE: &str = "mockup";
 
 /// Resize screenshot to fit device display resolution with letterboxing.
 fn fit_to_resolution(img: &DynamicImage, width: u32, height: u32) -> RgbaImage {
@@ -105,6 +109,37 @@ fn compose(
     Ok(result)
 }
 
+/// Check if a PNG file was already processed by applogo.
+pub fn is_already_processed(path: &Path) -> bool {
+    let Ok(file) = File::open(path) else {
+        return false;
+    };
+    let decoder = png::Decoder::new(BufReader::new(file));
+    let Ok(reader) = decoder.read_info() else {
+        return false;
+    };
+    reader
+        .info()
+        .uncompressed_latin1_text
+        .iter()
+        .any(|t| t.keyword == MARKER_KEY && t.text == MARKER_VALUE)
+}
+
+/// Save an RGBA image as PNG with the applogo marker.
+fn save_with_marker(img: &RgbaImage, output: &Path) -> Result<()> {
+    let file = File::create(output)
+        .with_context(|| format!("Failed to create {}", output.display()))?;
+    let w = BufWriter::new(file);
+    let mut encoder = png::Encoder::new(w, img.width(), img.height());
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder.add_text_chunk(MARKER_KEY.to_string(), MARKER_VALUE.to_string())?;
+    let mut writer = encoder.write_header()?;
+    writer.write_image_data(img.as_raw())?;
+    writer.finish()?;
+    Ok(())
+}
+
 /// Run the mockup generation.
 pub fn run(
     input: &Path,
@@ -134,13 +169,7 @@ pub fn run(
     );
 
     let result = compose(&screenshot, device, orientation)?;
-
-    let mut buf = Cursor::new(Vec::new());
-    result
-        .write_to(&mut buf, ImageFormat::Png)
-        .with_context(|| format!("Failed to encode mockup PNG"))?;
-    std::fs::write(output, buf.into_inner())
-        .with_context(|| format!("Failed to save mockup to {}", output.display()))?;
+    save_with_marker(&result, output)?;
 
     eprintln!("Saved mockup to {}", output.display());
     Ok(())
