@@ -4,8 +4,12 @@ App launch toolkit — icons, mockups, and more.
 
 A CLI tool for the app development lifecycle:
 - **`launch icon`** — Generate app icons for all platforms (iPhone, iPad, watchOS, macOS, Android)
-- **`launch mockup`** — Wrap screenshots in realistic device frames (iPhone 14–17 Pro)
+- **`launch mockup`** — Wrap screenshots in realistic device frames (iPhone 14–17 Pro, Samsung Galaxy S21, MacBook Air)
 - **`launch capture`** — Capture from iOS Simulator and apply mockup in one step
+- **`launch acapture`** — Capture from Android device via ADB and apply mockup
+- **`launch wcapture`** — Capture a macOS app window and apply mockup
+- **`launch screenshot`** — Generate App Store screenshots with title and device mockup
+- **`launch collage`** — Combine multiple screenshots into a single grid image
 
 ## Install
 
@@ -95,6 +99,67 @@ launch capture --raw
 
 # Choose device frame
 launch capture -d apple-iphone-15-pro-black-titanium
+
+# Full App Store screenshot with title
+launch capture --title "Your App Title"
+```
+
+### Android Capture
+
+```bash
+# Capture from connected Android device + apply mockup
+launch acapture
+
+# Specify device serial (when multiple connected)
+launch acapture -s SERIAL
+
+# Full Play Store screenshot with title
+launch acapture --title "Your App Title"
+```
+
+### Window Capture (macOS)
+
+```bash
+# Capture a macOS app window
+launch wcapture Safari
+
+# Capture Simulator window (auto-uses simctl for clean capture)
+launch wcapture Simulator
+
+# List matching windows
+launch wcapture Safari --list
+```
+
+### App Store Screenshot
+
+```bash
+# Generate screenshot with title + device mockup + gradient background
+launch screenshot screenshot.png --title "Amazing Feature"
+
+# Batch process a directory
+launch screenshot ./screenshots/ --title "Amazing Feature"
+
+# Custom font
+launch screenshot screenshot.png --title "功能亮点" --font custom.ttf
+```
+
+### Collage
+
+```bash
+# Combine all screenshots in current directory into a grid
+launch collage
+
+# Specify a directory
+launch collage ./screenshots/
+
+# Specify output path
+launch collage ./screenshots/ -o preview.png
+
+# Skip device frame (use raw screenshots)
+launch collage --no-frame
+
+# Custom padding between images
+launch collage --padding 80
 ```
 
 ## Available Devices
@@ -108,6 +173,8 @@ launch capture -d apple-iphone-15-pro-black-titanium
 | iPhone 15 Pro Max | `apple-iphone-15-pro-max-black-titanium` |
 | iPhone 14 Pro | `apple-iphone14pro-spaceblack` |
 | iPhone 14 | `apple-iphone14-midnight` |
+| Samsung Galaxy S21 Ultra | `samsung-galaxys21ultra-black` |
+| MacBook Air 13" | `apple-macbookair13` |
 
 ## Features
 

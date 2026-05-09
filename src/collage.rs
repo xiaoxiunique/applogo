@@ -12,7 +12,7 @@ pub fn run(
     output: &Path,
     device_id: &str,
     orientation: &str,
-    padding: u32,
+    padding_override: Option<u32>,
     no_frame: bool,
 ) -> Result<()> {
     if images.is_empty() {
@@ -54,6 +54,14 @@ pub fn run(
     // 3. Use first image dimensions as cell size reference, scale all to match
     let cell_w = mockup_images[0].width();
     let cell_h = mockup_images[0].height();
+
+    // Auto-scale padding: more cells → more breathing room
+    // Base 3% of cell width, grows with grid density
+    let padding = padding_override.unwrap_or_else(|| {
+        let base = (cell_w as f32 * 0.03) as u32;
+        let scale = 1.0 + (cols.max(rows) - 1) as f32 * 0.4;
+        (base as f32 * scale) as u32
+    });
 
     let resized: Vec<RgbaImage> = mockup_images
         .iter()

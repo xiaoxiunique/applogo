@@ -255,7 +255,8 @@ struct ScreenshotArgs {
 
 #[derive(Parser)]
 struct CollageArgs {
-    /// Directory containing screenshots (or multiple image paths)
+    /// Directory containing screenshots (defaults to current directory)
+    #[arg(default_value = ".")]
     input: PathBuf,
 
     /// Output file path
@@ -270,9 +271,9 @@ struct CollageArgs {
     #[arg(long, default_value = "portrait")]
     orientation: String,
 
-    /// Padding between images in pixels
-    #[arg(long, default_value = "40")]
-    padding: u32,
+    /// Padding between images in pixels (auto-scaled if not set)
+    #[arg(long)]
+    padding: Option<u32>,
 
     /// Skip device frame mockup (use raw screenshots)
     #[arg(long)]
