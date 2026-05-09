@@ -33,6 +33,8 @@ Rust (edition 2021), CLI built with **clap v4** derive macros. Entry point: `src
 | `wcapture` | `main.rs` | macOS window capture → mockup pipeline (`screencapture`/CoreGraphics) |
 | `screenshot` | `screenshot.rs` | App Store screenshot with title + gradient background |
 | `collage` | `collage.rs` | Combine multiple screenshots into auto-grid collage with adaptive padding |
+| `watch` | `watch.rs` | Monitor iOS Simulator, auto-capture on screen changes, mockup + collage on exit |
+| `awatch` | `watch.rs` | Monitor Android device via ADB, same pipeline as `watch` |
 
 Legacy: bare `launch icon.png` still works via backward-compat arg parsing in `main.rs`.
 
@@ -43,6 +45,7 @@ Legacy: bare `launch icon.png` still works via backward-compat arg parsing in `m
 - **`mockup.rs`** — Image compositing: resize screenshot into device frame, apply mask, handle rotation. Uses invisible PNG marker to skip already-processed images
 - **`screenshot.rs`** — Title text rendering (`ab_glyph` + `imageproc`), gradient backgrounds, font loading (embedded + custom TTF/OTF/TTC). Exports `create_gradient_canvas()` for reuse
 - **`collage.rs`** — Auto-grid layout for multiple images, adaptive padding (scales with grid density), reuses mockup pipeline and gradient canvas
+- **`watch.rs`** — Real-time screen monitoring with hash-based change detection, shared `CaptureSource` abstraction for iOS (`xcrun simctl`) and Android (`adb screencap`), Ctrl+C graceful exit via `ctrlc` crate + `AtomicBool`
 - **`clipboard.rs`** — Cross-platform clipboard read/write via `arboard`
 - **`resize.rs`** — Lanczos3 downsampling with fill/fit modes
 - **`zip.rs`** — ZIP packing with deflate compression, deduplication

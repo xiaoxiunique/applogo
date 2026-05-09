@@ -10,6 +10,8 @@ A CLI tool for the app development lifecycle:
 - **`launch wcapture`** — Capture a macOS app window and apply mockup
 - **`launch screenshot`** — Generate App Store screenshots with title and device mockup
 - **`launch collage`** — Combine multiple screenshots into a single grid image
+- **`launch watch`** — Monitor iOS Simulator and auto-capture on screen changes
+- **`launch awatch`** — Monitor Android device and auto-capture on screen changes
 
 ## Install
 
@@ -160,6 +162,43 @@ launch collage --no-frame
 
 # Custom padding between images
 launch collage --padding 80
+```
+
+### Watch (iOS Simulator)
+
+```bash
+# Auto-capture on screen changes, Ctrl+C to stop
+launch watch
+
+# Custom output directory
+launch watch -o ./my-shots
+
+# Faster polling (0.5s)
+launch watch --interval 0.5
+
+# Skip collage generation on exit
+launch watch --no-collage
+```
+
+Output structure:
+```
+watch-screenshots/
+├── raw/           # Original screenshots
+├── mockups/       # With device frames
+└── collage.png    # Combined grid
+```
+
+### Awatch (Android)
+
+```bash
+# Auto-capture from Android device, Ctrl+C to stop
+launch awatch
+
+# Specify device serial
+launch awatch -s SERIAL
+
+# Custom output and interval
+launch awatch -o ./android-shots --interval 0.5
 ```
 
 ## Available Devices
