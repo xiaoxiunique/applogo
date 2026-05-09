@@ -18,7 +18,7 @@ use config::Platform;
 use zip::ZipEntry;
 
 /// Check if a command exists in PATH.
-fn which_exists(cmd: &str) -> bool {
+pub(crate) fn which_exists(cmd: &str) -> bool {
     std::process::Command::new("which")
         .arg(cmd)
         .output()
@@ -68,6 +68,8 @@ enum Command {
     Collage(CollageArgs),
     /// Watch iOS Simulator and auto-capture on screen changes
     Watch(WatchArgs),
+    /// Watch Android device and auto-capture on screen changes
+    Awatch(AwatchArgs),
 }
 
 #[derive(Parser)]
@@ -306,6 +308,33 @@ struct WatchArgs {
     no_collage: bool,
 }
 
+#[derive(Parser)]
+struct AwatchArgs {
+    /// Output directory for captured screenshots
+    #[arg(short, long, default_value = "./awatch-screenshots")]
+    output: PathBuf,
+
+    /// ADB device serial (when multiple devices connected)
+    #[arg(short, long)]
+    serial: Option<String>,
+
+    /// Device frame ID
+    #[arg(short, long, default_value = device::DEFAULT_ANDROID_DEVICE)]
+    device: String,
+
+    /// Orientation: portrait or landscape
+    #[arg(long, default_value = "portrait")]
+    orientation: String,
+
+    /// Polling interval in seconds
+    #[arg(long, default_value = "1.0")]
+    interval: f32,
+
+    /// Skip collage generation on exit
+    #[arg(long)]
+    no_collage: bool,
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -318,6 +347,7 @@ fn main() -> Result<()> {
         Some(Command::Screenshot(args)) => run_screenshot(args),
         Some(Command::Collage(args)) => run_collage(args),
         Some(Command::Watch(args)) => run_watch(args),
+        Some(Command::Awatch(args)) => run_awatch(args),
         None => {
             // Backward compat: treat as icon generation if input is provided
             if let Some(input) = cli.input {
@@ -960,5 +990,17 @@ fn run_watch(args: WatchArgs) -> Result<()> {
         &args.orientation,
         interval,
         args.no_collage,
+    )
+}
+
+fn run_awatch(args: AwatchArgs) -> Result<()> {
+    let interval = std::time::Duration::from_secs_f32(args.interval);
+    watch::run_android(
+        &args.output,
+        &args.device,
+        &args.orientation,
+        interval,
+        args.no_collage,
+        args.serial.as_deref(),
     )
 }
