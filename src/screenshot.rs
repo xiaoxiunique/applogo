@@ -83,7 +83,7 @@ fn fit_font_size(font: &FontVec, text: &str, max_width: f32, initial_size: f32) 
 }
 
 /// Create a canvas with linear gradient background.
-fn create_gradient_canvas(w: u32, h: u32) -> RgbaImage {
+pub fn create_gradient_canvas(w: u32, h: u32) -> RgbaImage {
     let mut canvas = RgbaImage::new(w, h);
     let gradient_end_y = (h as f32 * BG_GRADIENT_END) as u32;
     for y in 0..h {

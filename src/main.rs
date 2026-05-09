@@ -1,4 +1,5 @@
 mod clipboard;
+mod collage;
 mod config;
 mod contents_json;
 mod device;
@@ -62,6 +63,8 @@ enum Command {
     Wcapture(WcaptureArgs),
     /// Generate App Store screenshot with title and device mockup
     Screenshot(ScreenshotArgs),
+    /// Combine multiple screenshots into a single collage image
+    Collage(CollageArgs),
 }
 
 #[derive(Parser)]
@@ -250,6 +253,32 @@ struct ScreenshotArgs {
     font_size: f32,
 }
 
+#[derive(Parser)]
+struct CollageArgs {
+    /// Directory containing screenshots (or multiple image paths)
+    input: PathBuf,
+
+    /// Output file path
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+
+    /// Device frame ID
+    #[arg(short, long, default_value = device::DEFAULT_DEVICE)]
+    device: String,
+
+    /// Orientation: portrait or landscape
+    #[arg(long, default_value = "portrait")]
+    orientation: String,
+
+    /// Padding between images in pixels
+    #[arg(long, default_value = "40")]
+    padding: u32,
+
+    /// Skip device frame mockup (use raw screenshots)
+    #[arg(long)]
+    no_frame: bool,
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -260,6 +289,7 @@ fn main() -> Result<()> {
         Some(Command::Acapture(args)) => run_acapture(args),
         Some(Command::Wcapture(args)) => run_wcapture(args),
         Some(Command::Screenshot(args)) => run_screenshot(args),
+        Some(Command::Collage(args)) => run_collage(args),
         None => {
             // Backward compat: treat as icon generation if input is provided
             if let Some(input) = cli.input {
@@ -836,5 +866,60 @@ fn run_screenshot(args: ScreenshotArgs) -> Result<()> {
         &args.orientation,
         font_path,
         args.font_size,
+    )
+}
+
+fn run_collage(args: CollageArgs) -> Result<()> {
+    if !args.input.is_dir() {
+        anyhow::bail!(
+            "Expected a directory of screenshots.\n\
+             Usage: launch collage <screenshots_dir/>"
+        );
+    }
+
+    // Collect image files from directory, sorted by name
+    let mut images: Vec<PathBuf> = Vec::new();
+    for entry in std::fs::read_dir(&args.input)
+        .with_context(|| format!("Failed to read directory: {}", args.input.display()))?
+    {
+        let entry = entry?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let ext = path
+            .extension()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_lowercase();
+        if matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "webp") {
+            images.push(path);
+        }
+    }
+    images.sort();
+
+    if images.is_empty() {
+        anyhow::bail!(
+            "No images found in {}. Supported formats: png, jpg, jpeg, webp",
+            args.input.display()
+        );
+    }
+
+    let output = args.output.unwrap_or_else(|| {
+        let dir_name = args
+            .input
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy();
+        PathBuf::from(format!("{}-collage.png", dir_name))
+    });
+
+    collage::run(
+        &images,
+        &output,
+        &args.device,
+        &args.orientation,
+        args.padding,
+        args.no_frame,
     )
 }
