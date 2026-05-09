@@ -6,6 +6,7 @@ mod device;
 mod mockup;
 mod resize;
 mod screenshot;
+mod watch;
 mod zip;
 
 use std::path::{Path, PathBuf};
@@ -65,6 +66,8 @@ enum Command {
     Screenshot(ScreenshotArgs),
     /// Combine multiple screenshots into a single collage image
     Collage(CollageArgs),
+    /// Watch iOS Simulator and auto-capture on screen changes
+    Watch(WatchArgs),
 }
 
 #[derive(Parser)]
@@ -280,6 +283,29 @@ struct CollageArgs {
     no_frame: bool,
 }
 
+#[derive(Parser)]
+struct WatchArgs {
+    /// Output directory for captured screenshots
+    #[arg(short, long, default_value = "./watch-screenshots")]
+    output: PathBuf,
+
+    /// Device frame ID
+    #[arg(short, long, default_value = device::DEFAULT_DEVICE)]
+    device: String,
+
+    /// Orientation: portrait or landscape
+    #[arg(long, default_value = "portrait")]
+    orientation: String,
+
+    /// Polling interval in seconds
+    #[arg(long, default_value = "1.0")]
+    interval: f32,
+
+    /// Skip collage generation on exit
+    #[arg(long)]
+    no_collage: bool,
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -291,6 +317,7 @@ fn main() -> Result<()> {
         Some(Command::Wcapture(args)) => run_wcapture(args),
         Some(Command::Screenshot(args)) => run_screenshot(args),
         Some(Command::Collage(args)) => run_collage(args),
+        Some(Command::Watch(args)) => run_watch(args),
         None => {
             // Backward compat: treat as icon generation if input is provided
             if let Some(input) = cli.input {
@@ -922,5 +949,16 @@ fn run_collage(args: CollageArgs) -> Result<()> {
         &args.orientation,
         args.padding,
         args.no_frame,
+    )
+}
+
+fn run_watch(args: WatchArgs) -> Result<()> {
+    let interval = std::time::Duration::from_secs_f32(args.interval);
+    watch::run(
+        &args.output,
+        &args.device,
+        &args.orientation,
+        interval,
+        args.no_collage,
     )
 }
