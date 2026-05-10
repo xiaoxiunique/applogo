@@ -4,6 +4,7 @@ App launch toolkit — icons, mockups, and more.
 
 A CLI tool for the app development lifecycle:
 - **`launch icon`** — Generate app icons for all platforms (iPhone, iPad, watchOS, macOS, Android)
+- **`launch generate logo`** — Generate a starter logo and icon ZIP
 - **`launch mockup`** — Wrap screenshots in realistic device frames (iPhone 14–17 Pro, Samsung Galaxy S21, MacBook Air)
 - **`launch capture`** — Capture from iOS Simulator and apply mockup in one step
 - **`launch acapture`** — Capture from Android device via ADB and apply mockup
@@ -70,6 +71,24 @@ launch icon icon.png -p iphone,android
 # Skip App Store / Play Store icons
 launch icon icon.png --no-stores
 ```
+
+### Logo Generation
+
+```bash
+# Generate logo.png and AppIcons.zip in the current directory
+launch generate logo
+
+# Short form
+l g logo
+
+# Add a short wordmark and make the result reproducible
+launch generate logo -o ./assets --text BX --seed 42
+
+# Only generate selected platform icons
+launch generate logo -o ./assets -p iphone,android
+```
+
+`generate logo` creates a random 1024x1024 PNG locally, then runs the same icon pipeline as `launch icon`.
 
 ### Device Mockup
 

@@ -3,6 +3,7 @@ mod collage;
 mod config;
 mod contents_json;
 mod device;
+mod generate_logo;
 mod mockup;
 mod record;
 mod resize;
@@ -57,6 +58,9 @@ enum Command {
     /// Generate app icons for all platforms
     #[command(alias = "i")]
     Icon(IconArgs),
+    /// Generate starter assets
+    #[command(alias = "g")]
+    Generate(GenerateArgs),
     /// Wrap screenshot in a device frame mockup
     #[command(alias = "m")]
     Mockup(MockupArgs),
@@ -100,6 +104,54 @@ struct IconArgs {
     /// Output ZIP file path
     #[arg(short, long, default_value = "AppIcons.zip")]
     output: PathBuf,
+
+    /// Platforms to generate icons for (comma-separated)
+    #[arg(short, long, value_delimiter = ',', default_value = "all")]
+    platforms: Vec<Platform>,
+
+    /// Custom filename for Android icons
+    #[arg(long, default_value = "ic_launcher.png")]
+    android_filename: String,
+
+    /// Skip App Store and Play Store icon generation
+    #[arg(long)]
+    no_stores: bool,
+}
+
+#[derive(Parser)]
+struct GenerateArgs {
+    #[command(subcommand)]
+    command: GenerateCommand,
+}
+
+#[derive(Subcommand)]
+enum GenerateCommand {
+    /// Generate a random logo and app icon ZIP
+    #[command(alias = "l")]
+    Logo(GenerateLogoArgs),
+}
+
+#[derive(Parser)]
+struct GenerateLogoArgs {
+    /// Output directory for generated assets
+    #[arg(short, long, default_value = ".")]
+    output: PathBuf,
+
+    /// Base filename for the generated logo PNG
+    #[arg(long, default_value = "logo.png")]
+    logo_name: String,
+
+    /// Output ZIP file path. Defaults to <output>/AppIcons.zip.
+    #[arg(short, long)]
+    icons: Option<PathBuf>,
+
+    /// Optional short text to draw in the logo, such as app initials
+    #[arg(short, long)]
+    text: Option<String>,
+
+    /// Deterministic seed for repeatable logo generation
+    #[arg(long)]
+    seed: Option<u64>,
 
     /// Platforms to generate icons for (comma-separated)
     #[arg(short, long, value_delimiter = ',', default_value = "all")]
@@ -463,6 +515,7 @@ fn main() -> Result<()> {
 
     match cli.command {
         Some(Command::Icon(args)) => run_icon(args),
+        Some(Command::Generate(args)) => run_generate(args),
         Some(Command::Mockup(args)) => run_mockup(args),
         Some(Command::Capture(args)) => run_capture(args),
         Some(Command::Acapture(args)) => run_acapture(args),
@@ -498,16 +551,73 @@ fn main() -> Result<()> {
 }
 
 fn run_icon(args: IconArgs) -> Result<()> {
-    let platforms = config::expand_platforms(&args.platforms);
+    generate_icon_zip(
+        &args.input,
+        &args.output,
+        &args.platforms,
+        &args.android_filename,
+        args.no_stores,
+    )
+}
 
-    let img = resize::load_image(&args.input)?;
+fn run_generate(args: GenerateArgs) -> Result<()> {
+    match args.command {
+        GenerateCommand::Logo(args) => run_generate_logo(args),
+    }
+}
+
+fn run_generate_logo(args: GenerateLogoArgs) -> Result<()> {
+    std::fs::create_dir_all(&args.output)
+        .with_context(|| format!("Failed to create {}", args.output.display()))?;
+
+    let logo_path = args.output.join(&args.logo_name);
+    let icons_path = args
+        .icons
+        .unwrap_or_else(|| args.output.join("AppIcons.zip"));
+
+    generate_logo::run(generate_logo::LogoOptions {
+        output: logo_path.clone(),
+        text: args.text,
+        seed: args.seed,
+    })?;
+
+    generate_icon_zip(
+        &logo_path,
+        &icons_path,
+        &args.platforms,
+        &args.android_filename,
+        args.no_stores,
+    )?;
+
+    eprintln!("Generated starter logo -> {}", logo_path.display());
+    eprintln!("Generated app icons -> {}", icons_path.display());
+    Ok(())
+}
+
+fn generate_icon_zip(
+    input: &Path,
+    output: &Path,
+    platform_args: &[Platform],
+    android_filename: &str,
+    no_stores: bool,
+) -> Result<()> {
+    if let Some(parent) = output.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create {}", parent.display()))?;
+        }
+    }
+
+    let platforms = config::expand_platforms(platform_args);
+
+    let img = resize::load_image(input)?;
 
     // Collect unique (size, fill_white_bg) pairs
     let mut size_requests: Vec<(u32, bool)> = Vec::new();
 
     for &platform in &platforms {
         let fill_white = !config::preserves_alpha(platform);
-        let entries = config::get_entries(platform, &args.android_filename);
+        let entries = config::get_entries(platform, android_filename);
         for entry in &entries {
             let key = (entry.expected_size, fill_white);
             if !size_requests.contains(&key) {
@@ -516,7 +626,7 @@ fn run_icon(args: IconArgs) -> Result<()> {
         }
     }
 
-    if !args.no_stores {
+    if !no_stores {
         for entry in &config::store_entries() {
             let fill_white = !config::store_preserves_alpha(&entry.filename);
             let key = (entry.expected_size, fill_white);
@@ -529,7 +639,7 @@ fn run_icon(args: IconArgs) -> Result<()> {
     eprintln!(
         "Resizing {} unique icon sizes from {}...",
         size_requests.len(),
-        args.input.display()
+        input.display()
     );
     let resized = resize::resize_all(&img, &size_requests)?;
 
@@ -539,7 +649,7 @@ fn run_icon(args: IconArgs) -> Result<()> {
 
     for &platform in &platforms {
         let fill_white = !config::preserves_alpha(platform);
-        let entries = config::get_entries(platform, &args.android_filename);
+        let entries = config::get_entries(platform, android_filename);
         for entry in &entries {
             let data = resized[&(entry.expected_size, fill_white)].clone();
             let path = format!("{}{}", entry.folder, entry.filename);
@@ -548,7 +658,7 @@ fn run_icon(args: IconArgs) -> Result<()> {
         }
     }
 
-    if !args.no_stores {
+    if !no_stores {
         for entry in &config::store_entries() {
             let fill_white = !config::store_preserves_alpha(&entry.filename);
             let data = resized[&(entry.expected_size, fill_white)].clone();
@@ -560,20 +670,20 @@ fn run_icon(args: IconArgs) -> Result<()> {
 
     let has_apple = platforms.iter().any(|p| config::is_apple_platform(*p));
     if has_apple {
-        let contents = contents_json::generate(&platforms, &args.android_filename);
+        let contents = contents_json::generate(&platforms, android_filename);
         zip_entries.push(ZipEntry {
             path: "Assets.xcassets/AppIcon.appiconset/Contents.json".into(),
             data: contents.into_bytes(),
         });
     }
 
-    zip::build_zip(&args.output, zip_entries)?;
+    zip::build_zip(output, zip_entries)?;
 
     eprintln!(
         "Generated {} icons for {} platform(s) -> {}",
         icon_count,
         platforms.len(),
-        args.output.display()
+        output.display()
     );
 
     Ok(())
