@@ -55,28 +55,40 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Generate app icons for all platforms
+    #[command(alias = "i")]
     Icon(IconArgs),
     /// Wrap screenshot in a device frame mockup
+    #[command(alias = "m")]
     Mockup(MockupArgs),
     /// Capture screenshot from iOS Simulator and apply mockup
+    #[command(alias = "c")]
     Capture(CaptureArgs),
     /// Capture screenshot from Android device via ADB
+    #[command(alias = "ac")]
     Acapture(AcaptureArgs),
     /// Capture a macOS app window screenshot
+    #[command(alias = "wc")]
     Wcapture(WcaptureArgs),
     /// Generate App Store screenshot with title and device mockup
+    #[command(alias = "s")]
     Screenshot(ScreenshotArgs),
     /// Combine multiple screenshots into a single collage image
+    #[command(alias = "co")]
     Collage(CollageArgs),
     /// Watch iOS Simulator and auto-capture on screen changes
+    #[command(alias = "w")]
     Watch(WatchArgs),
     /// Watch Android device and auto-capture on screen changes
+    #[command(alias = "aw")]
     Awatch(AwatchArgs),
     /// Record iOS Simulator video and optionally cut it into clips
+    #[command(alias = "r")]
     Record(RecordArgs),
     /// Apply a device frame to an existing video
+    #[command(alias = "fv")]
     FrameVideo(FrameVideoArgs),
     /// Add large cover-style title text to a video
+    #[command(alias = "t")]
     Title(TitleArgs),
 }
 
