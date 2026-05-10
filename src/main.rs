@@ -4,8 +4,10 @@ mod config;
 mod contents_json;
 mod device;
 mod mockup;
+mod record;
 mod resize;
 mod screenshot;
+mod video_title;
 mod watch;
 mod zip;
 
@@ -70,6 +72,12 @@ enum Command {
     Watch(WatchArgs),
     /// Watch Android device and auto-capture on screen changes
     Awatch(AwatchArgs),
+    /// Record iOS Simulator video and optionally cut it into clips
+    Record(RecordArgs),
+    /// Apply a device frame to an existing video
+    FrameVideo(FrameVideoArgs),
+    /// Add large cover-style title text to a video
+    Title(TitleArgs),
 }
 
 #[derive(Parser)]
@@ -335,6 +343,109 @@ struct AwatchArgs {
     no_collage: bool,
 }
 
+#[derive(Parser)]
+struct RecordArgs {
+    /// Output directory for recording sessions
+    #[arg(short, long, default_value = "./recordings")]
+    output: PathBuf,
+
+    /// Session folder name (defaults to recording-<timestamp>)
+    #[arg(long)]
+    name: Option<String>,
+
+    /// Apply a device frame to the exported video or clips
+    #[arg(long)]
+    frame: bool,
+
+    /// Device frame ID used with --frame
+    #[arg(short, long, default_value = device::DEFAULT_DEVICE)]
+    device: String,
+
+    /// Device orientation used with --frame
+    #[arg(long, default_value = "portrait")]
+    orientation: String,
+
+    /// Outer padding around the framed device video
+    #[arg(long, default_value = "96")]
+    frame_padding: u32,
+
+    /// Detect and remove repeated still video inside clips
+    #[arg(long)]
+    auto_trim: bool,
+
+    /// Minimum still duration, in seconds, before auto-trim removes it
+    #[arg(long, default_value = "2.0")]
+    freeze_min: f64,
+
+    /// FFmpeg freezedetect noise tolerance, from 0 to 1
+    #[arg(long, default_value = "0.001")]
+    freeze_noise: f64,
+
+    /// Seconds of still content to keep at each side of a removed interval
+    #[arg(long, default_value = "0.4")]
+    keep_still: f64,
+
+    /// Write markers/cut plan without exporting trimmed clips
+    #[arg(long)]
+    dry_run: bool,
+}
+
+#[derive(Parser)]
+struct FrameVideoArgs {
+    /// Source video to wrap in a device frame
+    input: PathBuf,
+
+    /// Output MP4 path
+    #[arg(short, long)]
+    output: PathBuf,
+
+    /// Device frame ID
+    #[arg(short, long, default_value = device::DEFAULT_DEVICE)]
+    device: String,
+
+    /// Device orientation
+    #[arg(long, default_value = "portrait")]
+    orientation: String,
+
+    /// Outer padding around the framed device video
+    #[arg(long, default_value = "96")]
+    padding: u32,
+}
+
+#[derive(Parser)]
+struct TitleArgs {
+    /// Source video to add title text to
+    input: PathBuf,
+
+    /// Title text. Use "\n" for manual line breaks; long text wraps automatically.
+    #[arg(short, long)]
+    text: String,
+
+    /// Output MP4 path
+    #[arg(short, long)]
+    output: PathBuf,
+
+    /// Seconds to show the title overlay from the start
+    #[arg(long, default_value = "1.0")]
+    duration: f64,
+
+    /// Vertical title center as a ratio of video height
+    #[arg(long, default_value = "0.40")]
+    y_ratio: f64,
+
+    /// Maximum title line width as a ratio of video width
+    #[arg(long, default_value = "0.78")]
+    wrap_width: f64,
+
+    /// Font size in pixels. Auto-sized when omitted.
+    #[arg(long)]
+    font_size: Option<u32>,
+
+    /// Custom font file
+    #[arg(long)]
+    font: Option<PathBuf>,
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -348,6 +459,9 @@ fn main() -> Result<()> {
         Some(Command::Collage(args)) => run_collage(args),
         Some(Command::Watch(args)) => run_watch(args),
         Some(Command::Awatch(args)) => run_awatch(args),
+        Some(Command::Record(args)) => run_record(args),
+        Some(Command::FrameVideo(args)) => run_frame_video(args),
+        Some(Command::Title(args)) => run_title(args),
         None => {
             // Backward compat: treat as icon generation if input is provided
             if let Some(input) = cli.input {
@@ -1003,4 +1117,90 @@ fn run_awatch(args: AwatchArgs) -> Result<()> {
         args.no_collage,
         args.serial.as_deref(),
     )
+}
+
+fn run_record(args: RecordArgs) -> Result<()> {
+    if args.freeze_min <= 0.0 {
+        anyhow::bail!("--freeze-min must be greater than 0");
+    }
+    if !(0.0..=1.0).contains(&args.freeze_noise) {
+        anyhow::bail!("--freeze-noise must be between 0 and 1");
+    }
+    if args.keep_still < 0.0 {
+        anyhow::bail!("--keep-still must be 0 or greater");
+    }
+    if args.frame {
+        validate_frame_device(&args.device, &args.orientation)?;
+    }
+
+    record::run(record::RecordOptions {
+        output_dir: args.output,
+        name: args.name,
+        frame: args.frame,
+        frame_device: args.device,
+        frame_orientation: args.orientation,
+        frame_padding: args.frame_padding,
+        auto_trim: args.auto_trim,
+        freeze_min: args.freeze_min,
+        freeze_noise: args.freeze_noise,
+        keep_still: args.keep_still,
+        dry_run: args.dry_run,
+    })
+}
+
+fn run_frame_video(args: FrameVideoArgs) -> Result<()> {
+    validate_frame_device(&args.device, &args.orientation)?;
+    if !args.input.exists() {
+        anyhow::bail!("Input video not found: {}", args.input.display());
+    }
+    if let Some(parent) = args.output.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create {}", parent.display()))?;
+        }
+    }
+
+    record::frame_existing_video(record::FrameVideoOptions {
+        input: args.input,
+        output: args.output,
+        device: args.device,
+        orientation: args.orientation,
+        padding: args.padding,
+    })
+}
+
+fn run_title(args: TitleArgs) -> Result<()> {
+    if !args.input.exists() {
+        anyhow::bail!("Input video not found: {}", args.input.display());
+    }
+    if let Some(parent) = args.output.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create {}", parent.display()))?;
+        }
+    }
+
+    video_title::run(video_title::TitleOptions {
+        input: args.input,
+        output: args.output,
+        text: args.text,
+        duration: args.duration,
+        y_ratio: args.y_ratio,
+        wrap_width: args.wrap_width,
+        font_size: args.font_size,
+        font: args.font,
+    })
+}
+
+fn validate_frame_device(device_id: &str, orientation: &str) -> Result<()> {
+    let frame_device = device::find_device(device_id)
+        .ok_or_else(|| anyhow::anyhow!("Unknown device: {}", device_id))?;
+    if frame_device.find_orientation(orientation).is_none() {
+        anyhow::bail!(
+            "Device {} does not support orientation: {}",
+            device_id,
+            orientation
+        );
+    }
+    Ok(())
 }

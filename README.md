@@ -12,6 +12,9 @@ A CLI tool for the app development lifecycle:
 - **`launch collage`** — Combine multiple screenshots into a single grid image
 - **`launch watch`** — Monitor iOS Simulator and auto-capture on screen changes
 - **`launch awatch`** — Monitor Android device and auto-capture on screen changes
+- **`launch record`** — Record iOS Simulator video, add markers, and export clips
+- **`launch frame-video`** — Apply a device frame to an existing video
+- **`launch title`** — Add large cover-style title text to a video
 
 ## Install
 
@@ -200,6 +203,82 @@ launch awatch -s SERIAL
 # Custom output and interval
 launch awatch -o ./android-shots --interval 0.5
 ```
+
+### Record (iOS Simulator)
+
+```bash
+# Record the booted iOS Simulator. Press m to mark a new clip, q to stop.
+launch record
+
+# Save under recordings/demo-flow/
+launch record --name demo-flow
+
+# Apply the default iPhone 16 Pro frame to the full video or generated clips
+launch record --frame
+
+# Increase or reduce the outer breathing room
+launch record --frame --frame-padding 140
+
+# Choose a different frame
+launch record --frame -d apple-iphone-15-pro-black-titanium
+
+# Detect long still sections and remove repeated frames from each clip
+launch record --auto-trim
+
+# Preview the cut plan without exporting trimmed clips
+launch record --auto-trim --dry-run
+
+# Tune still-frame detection and keep short context around removals
+launch record --auto-trim --freeze-min 1.5 --keep-still 0.5
+```
+
+Output structure:
+```
+recordings/recording-<timestamp>/
+├── raw.mp4          # Full unmodified recording
+├── framed.mp4       # Full framed video when --frame is used without clips
+├── markers.json    # Manual marker timestamps
+├── cuts.json       # Auto-trim plan, when --auto-trim is used
+└── clips/          # Exported clip-001.mp4 and clip-001-framed.mp4, ...
+```
+
+`record` requires a booted iOS Simulator. Clip export and `--auto-trim` require FFmpeg.
+
+### Frame Video
+
+```bash
+# Apply the default iPhone 16 Pro frame to an existing video
+launch frame-video raw.mp4 -o framed.mp4
+
+# Increase or reduce the outer breathing room
+launch frame-video raw.mp4 -o framed.mp4 --padding 140
+
+# Choose a different device frame
+launch frame-video raw.mp4 -o framed.mp4 -d apple-iphone-15-pro-black-titanium
+```
+
+`frame-video` uses the same device templates and light gray background as `record --frame`.
+
+### Video Title
+
+```bash
+# Add large cover text to the first second
+launch title framed.mp4 --text "如何下载\\n搬小书" -o titled.mp4
+
+# Long text wraps automatically; spaces are preferred break points
+launch title framed.mp4 --text "如何下载 搬小书 以及更多功能" -o titled.mp4
+
+# Keep the title visible longer and move it down
+launch title framed.mp4 --text "如何下载\\n搬小书" -o titled.mp4 --duration 5 --y-ratio 0.46
+
+# Use a narrower title block
+launch title framed.mp4 --text "如何下载 搬小书 以及更多功能" -o titled.mp4 --wrap-width 0.65
+
+# Override auto font sizing
+launch title framed.mp4 --text "如何下载\\n搬小书" -o titled.mp4 --font-size 220
+```
+
+`title` uses the bundled Chinese title font to create yellow text with bold outlines for short-video cover frames. It preserves manual `\n` breaks, wraps spaced text at word boundaries, and wraps Chinese-style unspaced text by character width.
 
 ## Available Devices
 
