@@ -8,6 +8,7 @@ mod mockup;
 mod record;
 mod resize;
 mod screenshot;
+mod tts;
 mod video_title;
 mod watch;
 mod zip;
@@ -94,6 +95,9 @@ enum Command {
     /// Add large cover-style title text to a video
     #[command(alias = "t")]
     Title(TitleArgs),
+    /// Generate speech from text with Doubao TTS
+    #[command(alias = "say")]
+    Tts(Box<TtsArgs>),
 }
 
 #[derive(Parser)]
@@ -510,6 +514,120 @@ struct TitleArgs {
     font: Option<PathBuf>,
 }
 
+#[derive(Parser)]
+struct TtsArgs {
+    #[command(subcommand)]
+    command: Option<TtsCommand>,
+
+    /// Text to synthesize
+    text: Option<String>,
+
+    /// Read text from a UTF-8 file
+    #[arg(short, long)]
+    file: Option<PathBuf>,
+
+    /// Output audio path
+    #[arg(short, long, default_value_os_t = tts::default_output())]
+    output: PathBuf,
+
+    /// Doubao voice ID
+    #[arg(long, default_value_t = tts::default_voice())]
+    voice: String,
+
+    /// TTS model name
+    #[arg(long, default_value_t = tts::default_model())]
+    model: String,
+
+    /// Audio format, such as mp3, wav, opus, or pcm
+    #[arg(long, default_value_t = tts::default_format())]
+    format: String,
+
+    /// Speech speed
+    #[arg(long, default_value = "1.0")]
+    speed: f32,
+
+    /// TTS provider: gateway for API Key or volcengine for legacy App ID credentials
+    #[arg(long, value_enum, default_value = "gateway")]
+    provider: tts::TtsProvider,
+
+    /// Volcengine API Key TTS endpoint
+    #[arg(long, default_value_t = tts::default_base_url())]
+    base_url: String,
+
+    /// Volcengine legacy App ID TTS endpoint
+    #[arg(long, default_value_t = tts::default_volcengine_url())]
+    volcengine_url: String,
+
+    /// Environment variable used for the API key
+    #[arg(long, default_value_t = tts::default_api_key_env())]
+    api_key_env: String,
+
+    /// Volcengine App ID for --provider volcengine
+    #[arg(long)]
+    app_id: Option<String>,
+
+    /// Volcengine App Key for --provider volcengine
+    #[arg(long, default_value_t = tts::default_app_key())]
+    app_key: String,
+
+    /// Volcengine Access Key for --provider volcengine
+    #[arg(long)]
+    access_key: Option<String>,
+
+    /// Volcengine resource ID
+    #[arg(long, default_value_t = tts::default_resource_id())]
+    resource_id: String,
+
+    /// Play audio after generation using afplay
+    #[arg(long)]
+    play: bool,
+}
+
+#[derive(Subcommand)]
+enum TtsCommand {
+    /// Save the Doubao TTS API key and default settings
+    Config(TtsConfigArgs),
+}
+
+#[derive(Parser)]
+struct TtsConfigArgs {
+    /// Volcengine API key to save locally
+    #[arg(long)]
+    api_key: Option<String>,
+
+    /// Default Volcengine API Key TTS endpoint
+    #[arg(long)]
+    base_url: Option<String>,
+
+    /// Default TTS provider: gateway or volcengine
+    #[arg(long, value_enum)]
+    provider: Option<tts::TtsProvider>,
+
+    /// Volcengine App ID
+    #[arg(long)]
+    app_id: Option<String>,
+
+    /// Volcengine App Key
+    #[arg(long)]
+    app_key: Option<String>,
+
+    /// Volcengine Access Key
+    #[arg(long)]
+    access_key: Option<String>,
+
+    /// Volcengine resource ID
+    #[arg(long)]
+    resource_id: Option<String>,
+
+    /// Default Doubao voice ID
+    #[arg(long)]
+    voice: Option<String>,
+
+    /// Default TTS model
+    #[arg(long)]
+    model: Option<String>,
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -527,6 +645,7 @@ fn main() -> Result<()> {
         Some(Command::Record(args)) => run_record(args),
         Some(Command::FrameVideo(args)) => run_frame_video(args),
         Some(Command::Title(args)) => run_title(args),
+        Some(Command::Tts(args)) => run_tts(*args),
         None => {
             // Backward compat: treat as icon generation if input is provided
             if let Some(input) = cli.input {
@@ -1312,6 +1431,40 @@ fn run_title(args: TitleArgs) -> Result<()> {
         font_size: args.font_size,
         font: args.font,
     })
+}
+
+fn run_tts(args: TtsArgs) -> Result<()> {
+    match args.command {
+        Some(TtsCommand::Config(args)) => tts::configure(tts::TtsConfigOptions {
+            api_key: args.api_key,
+            base_url: args.base_url,
+            provider: args.provider,
+            app_id: args.app_id,
+            app_key: args.app_key,
+            access_key: args.access_key,
+            resource_id: args.resource_id,
+            voice: args.voice,
+            model: args.model,
+        }),
+        None => tts::run(tts::TtsOptions {
+            text: args.text,
+            file: args.file,
+            output: args.output,
+            voice: args.voice,
+            model: args.model,
+            format: args.format,
+            speed: args.speed,
+            provider: args.provider,
+            base_url: args.base_url,
+            volcengine_url: args.volcengine_url,
+            api_key_env: args.api_key_env,
+            app_id: args.app_id,
+            app_key: args.app_key,
+            access_key: args.access_key,
+            resource_id: args.resource_id,
+            play: args.play,
+        }),
+    }
 }
 
 fn validate_frame_device(device_id: &str, orientation: &str) -> Result<()> {

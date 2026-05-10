@@ -16,6 +16,7 @@ A CLI tool for the app development lifecycle:
 - **`launch record`** — Record iOS Simulator video, add markers, and export clips
 - **`launch frame-video`** — Apply a device frame to an existing video
 - **`launch title`** — Add large cover-style title text to a video
+- **`launch tts`** — Generate speech from text with Doubao TTS
 
 ## Install
 
@@ -298,6 +299,31 @@ launch title framed.mp4 --text "如何下载\\n搬小书" -o titled.mp4 --font-s
 ```
 
 `title` uses the bundled Chinese title font to create yellow text with bold outlines for short-video cover frames. It preserves manual `\n` breaks, wraps spaced text at word boundaries, and wraps Chinese-style unspaced text by character width.
+
+### Text to Speech
+
+```bash
+# Save your Volcengine API key locally
+launch tts config --api-key $VOLCENGINE_API_KEY
+
+# Generate speech from inline text
+launch tts "欢迎使用 Launch" -o speech.mp3
+
+# Short alias
+l say "这是一段视频旁白" -o voice.mp3
+
+# Read a longer script from a file
+launch tts -f script.txt -o intro.mp3 --speed 1.05
+
+# Override voice/model when needed
+launch tts "功能演示开始" -o demo.mp3 --voice zh_female_shuangkuaisisi_uranus_bigtts
+
+# Use legacy Volcengine App ID credentials
+launch tts config --provider volcengine --app-id <app-id> --access-key <access-key>
+launch tts "功能演示开始" -o demo.mp3 --provider volcengine
+```
+
+`tts` supports two providers. The default `gateway` provider uses the new Doubao Speech API Key flow against `https://openspeech.bytedance.com/api/v3/tts/unidirectional`; it sends `X-Api-Key` and `X-Api-Resource-Id`, first checking `VOLCENGINE_API_KEY`, then `~/.config/launch/tts.json`. The `volcengine` provider is kept for legacy App ID, Access Key, and resource ID `volc.service_type.10029`.
 
 ## Available Devices
 

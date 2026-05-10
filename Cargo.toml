@@ -1,6 +1,6 @@
 [package]
 name = "launch"
-version = "0.4.3"
+version = "0.4.4"
 edition = "2021"
 description = "App launch toolkit — icons, mockups, and more"
 license = "MIT"
@@ -26,3 +26,4 @@ png = "0.18"
 ab_glyph = "0.2"
 imageproc = "0.25"
 ctrlc = "3"
+base64 = "0.22"
