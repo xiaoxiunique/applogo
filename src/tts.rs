@@ -760,12 +760,12 @@ fn write_private_file(path: &Path, text: &str) -> Result<()> {
         .with_context(|| format!("Failed to write {}", path.display()))
 }
 
-fn restrict_dir_permissions(path: &Path) -> Result<()> {
+fn restrict_dir_permissions(_path: &Path) -> Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(path, fs::Permissions::from_mode(0o700))
-            .with_context(|| format!("Failed to set permissions on {}", path.display()))?;
+        fs::set_permissions(_path, fs::Permissions::from_mode(0o700))
+            .with_context(|| format!("Failed to set permissions on {}", _path.display()))?;
     }
     Ok(())
 }
